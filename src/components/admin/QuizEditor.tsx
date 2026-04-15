@@ -122,6 +122,13 @@ export default function QuizEditor({ initialData, quizId }: Props) {
             { id: uuidv4(), text: "No", isCorrect: 0, order: 1 },
           ];
         }
+        // When switching away from binary, reset to blank default choices
+        if (q.type === "binary" && updates.type && updates.type !== "binary") {
+          merged.choices = [
+            { id: uuidv4(), text: "", isCorrect: 0, order: 0 },
+            { id: uuidv4(), text: "", isCorrect: 0, order: 1 },
+          ];
+        }
         return merged;
       })
     );
