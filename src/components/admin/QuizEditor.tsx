@@ -25,6 +25,7 @@ interface QuizData {
   id: string;
   title: string;
   description: string | null;
+  timeLimit: number | null;
   questions: Question[];
 }
 
@@ -37,6 +38,7 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initialData.title);
   const [description, setDescription] = useState(initialData.description ?? "");
+  const [timeLimit, setTimeLimit] = useState<number | null>(initialData.timeLimit ?? null);
   const [questions, setQuestions] = useState<Question[]>(initialData.questions);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -44,11 +46,16 @@ export default function QuizEditor({ initialData, quizId }: Props) {
 
   // Snapshot of the last persisted state — used to detect unsaved changes
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
-    JSON.stringify({ title: initialData.title, description: initialData.description ?? "", questions: initialData.questions })
+    JSON.stringify({
+      title: initialData.title,
+      description: initialData.description ?? "",
+      timeLimit: initialData.timeLimit ?? null,
+      questions: initialData.questions,
+    })
   );
   const currentSnapshot = useMemo(
-    () => JSON.stringify({ title, description, questions }),
-    [title, description, questions]
+    () => JSON.stringify({ title, description, timeLimit, questions }),
+    [title, description, timeLimit, questions]
   );
   const isDirty = currentSnapshot !== savedSnapshot;
 
@@ -190,13 +197,20 @@ export default function QuizEditor({ initialData, quizId }: Props) {
     const res = await fetch(`/api/quizzes/${quizId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description: description || null, questions }),
+      body: JSON.stringify({
+        title,
+        description: description || null,
+        timeLimit,
+        questions,
+      }),
     });
 
     setSaving(false);
     if (res.ok) {
       setSaved(true);
-      setSavedSnapshot(JSON.stringify({ title, description, questions }));
+      setSavedSnapshot(
+        JSON.stringify({ title, description, timeLimit, questions })
+      );
       setTimeout(() => setSaved(false), 2000);
     } else {
       setError("Failed to save. Please try again.");
@@ -254,6 +268,26 @@ export default function QuizEditor({ initialData, quizId }: Props) {
             className="text-sm text-gray-500 w-full border-0 focus:outline-none bg-transparent mt-1"
             placeholder="Description (optional)"
           />
+          <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+            <label htmlFor="quiz-time-limit">Time per question (seconds)</label>
+            <input
+              id="quiz-time-limit"
+              type="number"
+              min={0}
+              value={timeLimit ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") {
+                  setTimeLimit(null);
+                } else {
+                  const n = parseInt(v, 10);
+                  setTimeLimit(Number.isFinite(n) && n > 0 ? n : null);
+                }
+              }}
+              placeholder="no timer"
+              className="w-20 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-black"
+            />
+          </div>
         </div>
         <div className="flex gap-2 shrink-0">
           <button
