@@ -126,6 +126,23 @@ export default function PresenterView({ sessionId }: Props) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [socket, sessionId]);
 
+  // Countdown tick for timed questions
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!state || state.timeLimit == null || state.questionOpenedAt == null) return;
+    if (state.phase !== "question_open") return;
+    const interval = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(interval);
+  }, [state?.phase, state?.timeLimit, state?.questionOpenedAt]);
+
+  const remainingSeconds =
+    state && state.timeLimit != null && state.questionOpenedAt != null
+      ? Math.max(
+          0,
+          Math.ceil((state.questionOpenedAt + state.timeLimit * 1000 - now) / 1000)
+        )
+      : null;
+
   if (!connected) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -253,11 +270,25 @@ export default function PresenterView({ sessionId }: Props) {
       {/* Current question */}
       {state.question && (
         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-500 mb-1">
-            Question {state.currentQuestionIndex + 1}
-            {state.totalQuestions ? ` of ${state.totalQuestions}` : ""} · {state.question.type} ·{" "}
-            {state.question.points} pt{state.question.points !== 1 ? "s" : ""}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs text-gray-500 mb-1">
+              Question {state.currentQuestionIndex + 1}
+              {state.totalQuestions ? ` of ${state.totalQuestions}` : ""} · {state.question.type} ·{" "}
+              {state.question.points} pt{state.question.points !== 1 ? "s" : ""}
+            </p>
+            {remainingSeconds != null && phase === "question_open" && (
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium tabular-nums ${
+                  remainingSeconds <= 5
+                    ? "bg-red-100 text-red-700"
+                    : "bg-gray-200 text-gray-700"
+                }`}
+                aria-live="polite"
+              >
+                {remainingSeconds}s
+              </span>
+            )}
+          </div>
           <p className="font-semibold text-lg">{state.question.title}</p>
           {phase === "question_open" && (
             <p className="mt-2 text-sm text-gray-500">

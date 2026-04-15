@@ -60,6 +60,8 @@ export interface AdminStatePayload {
   participantCount: number;
   responseCount: number;
   totalParticipants: number;
+  timeLimit: number | null;
+  questionOpenedAt: number | null;
   question: {
     id: string;
     title: string;

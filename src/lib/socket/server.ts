@@ -117,6 +117,7 @@ function buildSessionState(
 
 function buildAdminState(
   session: typeof liveSessions.$inferSelect,
+  quiz: typeof quizzes.$inferSelect | null,
   quizQuestions: (typeof questions.$inferSelect)[]
 ): AdminStatePayload {
   const participantCount = getParticipantCount(session.id);
@@ -137,6 +138,9 @@ function buildAdminState(
     participantCount,
     responseCount,
     totalParticipants: participantCount,
+    timeLimit: quiz?.timeLimit ?? null,
+    questionOpenedAt:
+      session.phase === "question_open" ? session.questionOpenedAt ?? null : null,
     question: question
       ? { id: question.id, title: question.title, type: question.type, points: question.points }
       : null,
@@ -156,7 +160,7 @@ function broadcastSessionState(
   io.to(`session:${session.code}`).emit("session:state", statePayload);
 
   // Admin state
-  const adminPayload = buildAdminState(session, quizQuestions);
+  const adminPayload = buildAdminState(session, quiz, quizQuestions);
   io.to(`admin:${session.id}`).emit("admin:state", adminPayload);
 }
 
@@ -384,8 +388,9 @@ export function setupSocketHandlers(io: SocketIOServer) {
       socket.join(`admin:${session.id}`);
       socket.data.adminSessionId = session.id;
 
+      const quiz = getQuiz(session.quizId);
       const quizQuestions = getQuestions(session.quizId);
-      const adminPayload = buildAdminState(session, quizQuestions);
+      const adminPayload = buildAdminState(session, quiz, quizQuestions);
       socket.emit("admin:state", adminPayload);
     });
 
@@ -443,8 +448,9 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
       // Only notify admin, not participants
       const updated = getSession(payload.sessionId)!;
+      const quiz = getQuiz(updated.quizId);
       const quizQuestions = getQuestions(updated.quizId);
-      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quizQuestions));
+      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quiz, quizQuestions));
     });
 
     // ── Admin: open-voting ──────────────────────────────────────────────────
@@ -609,8 +615,9 @@ export function setupSocketHandlers(io: SocketIOServer) {
       io.to(`session:${session.code}`).emit("session:ended", {});
 
       const updated = getSession(payload.sessionId)!;
+      const quiz = getQuiz(updated.quizId);
       const quizQuestions = getQuestions(updated.quizId);
-      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quizQuestions));
+      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quiz, quizQuestions));
     });
   });
 
