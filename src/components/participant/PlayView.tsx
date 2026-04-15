@@ -26,6 +26,8 @@ export default function PlayView({ sessionCode }: Props) {
   const [selectedChoices, setSelectedChoices] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [rejected, setRejected] = useState(false);
 
   // Resolve session and get participantId from localStorage
   useEffect(() => {
@@ -74,7 +76,13 @@ export default function PlayView({ sessionCode }: Props) {
         setResults(null);
         setCorrect(null);
         setResponseCount(null);
+        setRejected(false);
       }
+    };
+
+    const handleSubmitRejected = (_payload: { questionId: string; reason: string }) => {
+      setRejected(true);
+      setSubmitted(false);
     };
 
     const handleResponseCount = (payload: ResponseCountPayload) => setResponseCount(payload);
@@ -91,6 +99,7 @@ export default function PlayView({ sessionCode }: Props) {
     socket.on("session:scoreboard", handleScoreboard);
     socket.on("session:ended", handleEnded);
     socket.on("session:response-count", handleResponseCount);
+    socket.on("session:submit-rejected", handleSubmitRejected);
 
     return () => {
       socket.off("participant:confirmed", handleConfirmed);
@@ -100,8 +109,17 @@ export default function PlayView({ sessionCode }: Props) {
       socket.off("session:scoreboard", handleScoreboard);
       socket.off("session:ended", handleEnded);
       socket.off("session:response-count", handleResponseCount);
+      socket.off("session:submit-rejected", handleSubmitRejected);
     };
   }, [socket, connected, sessionCode]);
+
+  // Countdown tick for timed questions
+  useEffect(() => {
+    if (!state || state.timeLimit == null || state.questionOpenedAt == null) return;
+    if (state.phase !== "question_open") return;
+    const interval = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(interval);
+  }, [state?.phase, state?.timeLimit, state?.questionOpenedAt]);
 
   function toggleChoice(choiceId: string) {
     if (!state || state.phase !== "question_open" || submitted) return;
@@ -213,6 +231,16 @@ export default function PlayView({ sessionCode }: Props) {
   const current = state.currentQuestionIndex + 1;
   const progressPct = total > 0 ? Math.round((current / total) * 100) : 0;
 
+  const remainingSeconds =
+    state.timeLimit != null && state.questionOpenedAt != null
+      ? Math.max(
+          0,
+          Math.ceil((state.questionOpenedAt + state.timeLimit * 1000 - now) / 1000)
+        )
+      : null;
+  const timeUp =
+    remainingSeconds === 0 && state.phase === "question_open";
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {/* Progress bar */}
@@ -237,6 +265,16 @@ export default function PlayView({ sessionCode }: Props) {
             {" · "}{question.points} pt{question.points !== 1 ? "s" : ""}
           </p>
           <h2 className="text-2xl font-bold leading-snug">{question.title}</h2>
+          {remainingSeconds != null && state.phase === "question_open" && (
+            <p
+              className={`mt-2 text-sm font-medium tabular-nums ${
+                remainingSeconds <= 5 ? "text-red-600" : "text-gray-500"
+              }`}
+              aria-live="polite"
+            >
+              {remainingSeconds}s left
+            </p>
+          )}
         </div>
 
         {/* Personal result banner — shown above choices when revealed */}
@@ -385,13 +423,20 @@ export default function PlayView({ sessionCode }: Props) {
                 )}
               </div>
             ) : (
-              <button
-                onClick={submitAnswer}
-                disabled={selectedChoices.length === 0}
-                className="w-full py-4 bg-black text-white font-semibold text-lg rounded-xl hover:bg-gray-800 disabled:opacity-30"
-              >
-                Submit Answer
-              </button>
+              <>
+                <button
+                  onClick={submitAnswer}
+                  disabled={selectedChoices.length === 0 || timeUp}
+                  className="w-full py-4 bg-black text-white font-semibold text-lg rounded-xl hover:bg-gray-800 disabled:opacity-30"
+                >
+                  {timeUp ? "Time's up" : "Submit Answer"}
+                </button>
+                {rejected && (
+                  <p className="mt-2 text-xs text-center text-red-600">
+                    Time&apos;s up — your answer was not accepted.
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}
