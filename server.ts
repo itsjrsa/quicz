@@ -2,6 +2,7 @@ import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
+import { setupSocketHandlers } from "./src/lib/socket/server";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT ?? "3000", 10);
@@ -15,12 +16,10 @@ app.prepare().then(() => {
     handle(req, res, parsedUrl);
   });
 
-  // Socket.IO will be attached here in a later task
-  const _io = new SocketIOServer(httpServer, {
-    cors: {
-      origin: dev ? "*" : false,
-    },
+  const io = new SocketIOServer(httpServer, {
+    cors: { origin: dev ? "*" : false },
   });
+  setupSocketHandlers(io);
 
   httpServer.listen(port, () => {
     console.log(`> Ready on http://localhost:${port}`);
