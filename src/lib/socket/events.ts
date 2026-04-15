@@ -4,6 +4,8 @@ export interface SessionStatePayload {
   totalQuestions: number;
   answersVisible: boolean;
   correctRevealed: boolean;
+  timeLimit: number | null;
+  questionOpenedAt: number | null;
   question: {
     id: string;
     title: string;
@@ -13,6 +15,11 @@ export interface SessionStatePayload {
   } | null;
   choices: { id: string; text: string }[];
   mySubmission: string[] | null; // choiceIds submitted by this participant
+}
+
+export interface SubmitRejectedPayload {
+  questionId: string;
+  reason: "time_expired";
 }
 
 export interface ResultsPayload {
