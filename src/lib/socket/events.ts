@@ -1,6 +1,7 @@
 export interface SessionStatePayload {
   phase: "lobby" | "question_open" | "question_locked" | "results" | "final";
   currentQuestionIndex: number;
+  totalQuestions: number;
   answersVisible: boolean;
   correctRevealed: boolean;
   question: {
@@ -17,6 +18,12 @@ export interface SessionStatePayload {
 export interface ResultsPayload {
   questionId: string;
   distribution: { choiceId: string; count: number }[];
+}
+
+export interface ResponseCountPayload {
+  questionId: string;
+  count: number;
+  total: number;
 }
 
 export interface CorrectPayload {
@@ -39,6 +46,7 @@ export interface AdminStatePayload {
   sessionId: string;
   phase: string;
   currentQuestionIndex: number;
+  totalQuestions: number;
   answersVisible: boolean;
   correctRevealed: boolean;
   status: string;

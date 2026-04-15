@@ -86,6 +86,7 @@ function buildSessionState(
   return {
     phase: session.phase as SessionStatePayload["phase"],
     currentQuestionIndex: session.currentQuestionIndex,
+    totalQuestions: quizQuestions.length,
     answersVisible: Boolean(session.answersVisible),
     correctRevealed: Boolean(session.correctRevealed),
     question: question
@@ -117,6 +118,7 @@ function buildAdminState(
     sessionId: session.id,
     phase: session.phase,
     currentQuestionIndex: session.currentQuestionIndex,
+    totalQuestions: quizQuestions.length,
     answersVisible: Boolean(session.answersVisible),
     correctRevealed: Boolean(session.correctRevealed),
     status: session.status,
@@ -284,6 +286,15 @@ export function setupSocketHandlers(io: SocketIOServer) {
         count: responseCount,
         total: totalParticipants,
       });
+      // Also broadcast to participants so they can see live progress
+      const sessionCode = (socket.data as { sessionCode?: string }).sessionCode;
+      if (sessionCode) {
+        io.to(`session:${sessionCode}`).emit("session:response-count", {
+          questionId: payload.questionId,
+          count: responseCount,
+          total: totalParticipants,
+        });
+      }
     });
 
     // ── Admin join ──────────────────────────────────────────────────────────

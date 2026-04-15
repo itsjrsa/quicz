@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
@@ -41,6 +41,47 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+
+  // Snapshot of the last persisted state — used to detect unsaved changes
+  const [savedSnapshot, setSavedSnapshot] = useState(() =>
+    JSON.stringify({ title: initialData.title, description: initialData.description ?? "", questions: initialData.questions })
+  );
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({ title, description, questions }),
+    [title, description, questions]
+  );
+  const isDirty = currentSnapshot !== savedSnapshot;
+
+  // Warn on tab close / navigation away while dirty
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  // Validate quiz — returns list of human-readable problems
+  function validateQuiz(): string[] {
+    const problems: string[] = [];
+    if (!title.trim()) problems.push("Quiz title is empty.");
+    if (questions.length === 0) problems.push("Quiz has no questions.");
+    questions.forEach((q, i) => {
+      const label = `Question ${i + 1}`;
+      if (!q.title.trim()) problems.push(`${label}: missing question text.`);
+      if (q.choices.length < 2) problems.push(`${label}: needs at least 2 choices.`);
+      const emptyChoices = q.choices.filter((c) => !c.text.trim()).length;
+      if (emptyChoices > 0) problems.push(`${label}: ${emptyChoices} empty choice${emptyChoices > 1 ? "s" : ""}.`);
+      const correctCount = q.choices.filter((c) => c.isCorrect).length;
+      if (correctCount === 0) problems.push(`${label}: no correct answer marked.`);
+      if ((q.type === "single" || q.type === "binary") && correctCount > 1) {
+        problems.push(`${label}: ${q.type} question can only have one correct answer.`);
+      }
+    });
+    return problems;
+  }
 
   function addQuestion() {
     const newQ: Question = {
@@ -142,6 +183,7 @@ export default function QuizEditor({ initialData, quizId }: Props) {
     setSaving(false);
     if (res.ok) {
       setSaved(true);
+      setSavedSnapshot(JSON.stringify({ title, description, questions }));
       setTimeout(() => setSaved(false), 2000);
     } else {
       setError("Failed to save. Please try again.");
@@ -149,6 +191,18 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   }
 
   async function handleStartSession() {
+    setError("");
+    const problems = validateQuiz();
+    if (problems.length > 0) {
+      setError("Cannot start session:\n• " + problems.join("\n• "));
+      return;
+    }
+    if (isDirty) {
+      const ok = confirm("You have unsaved changes. Save before starting the session?");
+      if (ok) {
+        await handleSave();
+      }
+    }
     const res = await fetch("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -157,6 +211,8 @@ export default function QuizEditor({ initialData, quizId }: Props) {
     if (res.ok) {
       const session = await res.json() as { id: string };
       router.push(`/admin/sessions/${session.id}/present`);
+    } else {
+      setError("Failed to start session.");
     }
   }
 
@@ -189,10 +245,10 @@ export default function QuizEditor({ initialData, quizId }: Props) {
         <div className="flex gap-2 shrink-0">
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !isDirty}
             className="px-4 py-2 bg-black text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50"
           >
-            {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
+            {saving ? "Saving…" : saved ? "Saved ✓" : isDirty ? "Save" : "Saved"}
           </button>
           <button
             onClick={handleStartSession}
@@ -209,7 +265,11 @@ export default function QuizEditor({ initialData, quizId }: Props) {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+      {error && (
+        <pre className="text-sm text-red-600 mb-4 whitespace-pre-wrap font-sans bg-red-50 border border-red-200 rounded-md p-3">
+          {error}
+        </pre>
+      )}
 
       {/* Questions */}
       <div className="space-y-4">

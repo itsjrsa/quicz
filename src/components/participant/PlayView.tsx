@@ -7,6 +7,7 @@ import type {
   ResultsPayload,
   CorrectPayload,
   ScoreboardPayload,
+  ResponseCountPayload,
 } from "@/lib/socket/events";
 
 interface Props {
@@ -20,6 +21,7 @@ export default function PlayView({ sessionCode }: Props) {
   const [results, setResults] = useState<ResultsPayload | null>(null);
   const [correct, setCorrect] = useState<CorrectPayload | null>(null);
   const [scoreboard, setScoreboard] = useState<ScoreboardPayload | null>(null);
+  const [responseCount, setResponseCount] = useState<ResponseCountPayload | null>(null);
   const [ended, setEnded] = useState(false);
   const [selectedChoices, setSelectedChoices] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
@@ -71,8 +73,11 @@ export default function PlayView({ sessionCode }: Props) {
       if (payload.phase === "question_open") {
         setResults(null);
         setCorrect(null);
+        setResponseCount(null);
       }
     };
+
+    const handleResponseCount = (payload: ResponseCountPayload) => setResponseCount(payload);
 
     const handleResults = (payload: ResultsPayload) => setResults(payload);
     const handleCorrect = (payload: CorrectPayload) => setCorrect(payload);
@@ -85,6 +90,7 @@ export default function PlayView({ sessionCode }: Props) {
     socket.on("session:correct", handleCorrect);
     socket.on("session:scoreboard", handleScoreboard);
     socket.on("session:ended", handleEnded);
+    socket.on("session:response-count", handleResponseCount);
 
     return () => {
       socket.off("participant:confirmed", handleConfirmed);
@@ -93,6 +99,7 @@ export default function PlayView({ sessionCode }: Props) {
       socket.off("session:correct", handleCorrect);
       socket.off("session:scoreboard", handleScoreboard);
       socket.off("session:ended", handleEnded);
+      socket.off("session:response-count", handleResponseCount);
     };
   }, [socket, connected, sessionCode]);
 
@@ -202,17 +209,30 @@ export default function PlayView({ sessionCode }: Props) {
   // Suppress unused variable warning — sessionId is resolved for potential future use
   void sessionId;
 
+  const total = state.totalQuestions || 0;
+  const current = state.currentQuestionIndex + 1;
+  const progressPct = total > 0 ? Math.round((current / total) * 100) : 0;
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {/* Progress bar */}
       <div className="h-1 bg-gray-100">
-        <div className="h-1 bg-black" style={{ width: "100%" }} />
+        <div
+          className="h-1 bg-black transition-all duration-500"
+          style={{ width: `${progressPct}%` }}
+        />
       </div>
 
       <div className="flex-1 flex flex-col px-4 py-8 max-w-lg mx-auto w-full">
         {/* Question */}
         <div className="mb-8">
           <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">
+            {total > 0 && (
+              <>
+                Question {current} of {total}
+                {" · "}
+              </>
+            )}
             {question.type === "multi" ? "Select all that apply" : "Choose one"}
             {" · "}{question.points} pt{question.points !== 1 ? "s" : ""}
           </p>
@@ -356,7 +376,13 @@ export default function PlayView({ sessionCode }: Props) {
             {submitted ? (
               <div className="text-center py-4 text-gray-500">
                 <p className="font-medium">Answer submitted ✓</p>
-                <p className="text-sm mt-1">Waiting for others…</p>
+                {responseCount && responseCount.total > 0 ? (
+                  <p className="text-sm mt-1">
+                    {responseCount.count} of {responseCount.total} answered
+                  </p>
+                ) : (
+                  <p className="text-sm mt-1">Waiting for others…</p>
+                )}
               </div>
             ) : (
               <button
