@@ -1,14 +1,14 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
-import { db } from "@/db";
+import { db } from "../../db";
 import {
   liveSessions,
   participants,
   responses,
   questions,
   choices,
-} from "@/db/schema";
+} from "../../db/schema";
 import { eq, inArray } from "drizzle-orm";
-import { scoreQuestion } from "@/lib/scoring";
+import { scoreQuestion } from "../scoring";
 import { v4 as uuidv4 } from "uuid";
 import type {
   SessionStatePayload,
