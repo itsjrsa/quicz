@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  quicz:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - DATABASE_URL=/app/data/quicz.db
+      - PORT=3000
+    volumes:
+      - quicz_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  quicz_data:
