@@ -4,6 +4,8 @@ import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 type Params = { params: Promise<{ quizId: string }> };
 
 export default async function QuizSessionsPage({ params }: Params) {
@@ -20,7 +22,7 @@ export default async function QuizSessionsPage({ params }: Params) {
     .all();
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl mx-auto">
       <div className="mb-8">
         <Link href="/admin/quizzes" className="text-sm text-gray-500 hover:text-black">
           ← Quizzes

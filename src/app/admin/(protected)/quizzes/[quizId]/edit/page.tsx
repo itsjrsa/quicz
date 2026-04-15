@@ -4,6 +4,8 @@ import { quizzes, questions, choices } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import QuizEditor from "@/components/admin/QuizEditor";
 
+export const dynamic = "force-dynamic";
+
 type Params = { params: Promise<{ quizId: string }> };
 
 export default async function EditQuizPage({ params }: Params) {

@@ -219,6 +219,47 @@ export default function PlayView({ sessionCode }: Props) {
           <h2 className="text-2xl font-bold leading-snug">{question.title}</h2>
         </div>
 
+        {/* Personal result banner — shown above choices when revealed */}
+        {state.phase === "results" && state.correctRevealed && correct?.participantResult && (
+          <div
+            className={`mb-6 flex items-center gap-3 p-4 rounded-xl border-2 ${
+              correct.participantResult.isCorrect
+                ? "bg-green-50 border-green-400"
+                : "bg-red-50 border-red-400"
+            }`}
+          >
+            <div
+              className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+                correct.participantResult.isCorrect ? "bg-green-500" : "bg-red-500"
+              }`}
+            >
+              {correct.participantResult.isCorrect ? (
+                <svg viewBox="0 0 20 20" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="4,10.5 8.5,15 16,6" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 20 20" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="5" x2="15" y2="15" />
+                  <line x1="15" y1="5" x2="5" y2="15" />
+                </svg>
+              )}
+            </div>
+            <div className="flex-1">
+              {correct.participantResult.isCorrect ? (
+                <>
+                  <p className="font-bold text-lg text-green-800 leading-tight">Correct!</p>
+                  <p className="text-sm text-green-700">+{correct.participantResult.pointsEarned} points</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-lg text-red-800 leading-tight">Incorrect</p>
+                  <p className="text-sm text-red-700">No points this round</p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Choices */}
         <div className="space-y-3 flex-1">
           {(() => {
@@ -246,9 +287,9 @@ export default function PlayView({ sessionCode }: Props) {
                     barColor = "bg-green-400";
                     textColor = "text-green-800";
                   } else if (isSelected) {
-                    borderColor = "border-red-300";
-                    barColor = "bg-red-200";
-                    textColor = "text-red-700";
+                    borderColor = "border-red-500";
+                    barColor = "bg-red-300";
+                    textColor = "text-red-800";
                   } else {
                     borderColor = "border-gray-100";
                     textColor = "text-gray-400";
@@ -344,21 +385,6 @@ export default function PlayView({ sessionCode }: Props) {
           </div>
         )}
 
-        {/* Correct revealed — personal result */}
-        {state.phase === "results" && state.correctRevealed && correct?.participantResult && (
-          <div className={`mt-6 p-4 rounded-xl text-center ${
-            correct.participantResult.isCorrect ? "bg-green-50" : "bg-gray-50"
-          }`}>
-            {correct.participantResult.isCorrect ? (
-              <>
-                <p className="text-green-700 font-bold text-lg">Correct! ✓</p>
-                <p className="text-green-600 text-sm">+{correct.participantResult.pointsEarned} points</p>
-              </>
-            ) : (
-              <p className="text-gray-600 font-medium">Not quite — better luck next time!</p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

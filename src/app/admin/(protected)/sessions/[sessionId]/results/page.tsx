@@ -12,6 +12,8 @@ import { eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import ResponseChart from "@/components/charts/ResponseChart";
 
+export const dynamic = "force-dynamic";
+
 type Params = { params: Promise<{ sessionId: string }> };
 
 export default async function ResultsPage({ params }: Params) {
@@ -75,7 +77,7 @@ export default async function ResultsPage({ params }: Params) {
     });
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>

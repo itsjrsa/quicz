@@ -13,6 +13,16 @@ export default function PresenterView({ sessionId }: Props) {
   const [state, setState] = useState<AdminStatePayload | null>(null);
   const [sessionCode, setSessionCode] = useState<string>("");
   const [scoreboard, setScoreboard] = useState<ScoreboardPayload | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function copyCode() {
+    if (!sessionCode) return;
+    try {
+      await navigator.clipboard.writeText(sessionCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  }
 
   useEffect(() => {
     if (!socket) return;
@@ -83,12 +93,33 @@ export default function PresenterView({ sessionId }: Props) {
   const phase = state.phase;
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       {/* Session info bar */}
       <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
         <div>
           <span className="text-sm text-gray-500">Session code</span>
-          <p className="font-mono text-3xl font-bold tracking-widest">{sessionCode}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-mono text-3xl font-bold tracking-widest">{sessionCode}</p>
+            {sessionCode && (
+              <button
+                type="button"
+                onClick={copyCode}
+                title={copied ? "Copied" : "Copy code"}
+                className="w-8 h-8 flex items-center justify-center rounded-md text-gray-400 hover:text-black hover:bg-gray-100 transition"
+              >
+                {copied ? (
+                  <svg viewBox="0 0 16 16" className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3,8.5 6.5,12 13,5" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="5" y="5" width="8.5" height="8.5" rx="1.5" />
+                    <path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2h7" />
+                  </svg>
+                )}
+              </button>
+            )}
+          </div>
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-500">Participants</p>

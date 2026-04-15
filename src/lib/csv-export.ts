@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { participants, responses, questions, choices } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { liveSessions, participants, responses, questions, choices } from "@/db/schema";
+import { eq, inArray, asc } from "drizzle-orm";
 
 function escapeCsvField(value: string): string {
   if (value.includes(",") || value.includes('"') || value.includes("\n")) {
@@ -10,14 +10,31 @@ function escapeCsvField(value: string): string {
 }
 
 export function generateSessionCsv(sessionId: string): string {
+  const session = db
+    .select()
+    .from(liveSessions)
+    .where(eq(liveSessions.id, sessionId))
+    .get();
+
+  if (!session) {
+    return "participant_name,participant_id,question_id,question_title,question_type,selected_answers,answered,correct,points_earned,submitted_at";
+  }
+
   const sessionParticipants = db
     .select()
     .from(participants)
     .where(eq(participants.sessionId, sessionId))
+    .orderBy(asc(participants.joinedAt))
+    .all();
+
+  const quizQuestions = db
+    .select()
+    .from(questions)
+    .where(eq(questions.quizId, session.quizId))
+    .orderBy(asc(questions.order))
     .all();
 
   const participantIds = sessionParticipants.map((p) => p.id);
-
   const sessionResponses =
     participantIds.length > 0
       ? db
@@ -27,11 +44,9 @@ export function generateSessionCsv(sessionId: string): string {
           .all()
       : [];
 
-  const questionIds = Array.from(new Set(sessionResponses.map((r) => r.questionId)));
-  const sessionQuestions =
-    questionIds.length > 0
-      ? db.select().from(questions).where(inArray(questions.id, questionIds)).all()
-      : [];
+  const responseMap = new Map(
+    sessionResponses.map((r) => [`${r.participantId}::${r.questionId}`, r])
+  );
 
   const choiceIds = sessionResponses.flatMap((r) => {
     try {
@@ -45,10 +60,7 @@ export function generateSessionCsv(sessionId: string): string {
     uniqueChoiceIds.length > 0
       ? db.select().from(choices).where(inArray(choices.id, uniqueChoiceIds)).all()
       : [];
-
   const choiceMap = new Map(sessionChoices.map((c) => [c.id, c]));
-  const questionMap = new Map(sessionQuestions.map((q) => [q.id, q]));
-  const participantMap = new Map(sessionParticipants.map((p) => [p.id, p]));
 
   const headers = [
     "participant_name",
@@ -57,37 +69,61 @@ export function generateSessionCsv(sessionId: string): string {
     "question_title",
     "question_type",
     "selected_answers",
+    "answered",
     "correct",
     "points_earned",
     "submitted_at",
   ];
 
-  const rows = sessionResponses.map((r) => {
-    const participant = participantMap.get(r.participantId);
-    const question = questionMap.get(r.questionId);
-    const choiceIdList: string[] = (() => {
-      try {
-        return JSON.parse(r.choiceIds) as string[];
-      } catch {
-        return [];
-      }
-    })();
-    const selectedAnswers = choiceIdList
-      .map((id) => choiceMap.get(id)?.text ?? id)
-      .join(";");
+  const rows: string[] = [];
+  for (const participant of sessionParticipants) {
+    for (const question of quizQuestions) {
+      const response = responseMap.get(`${participant.id}::${question.id}`);
 
-    return [
-      escapeCsvField(participant?.displayName ?? ""),
-      escapeCsvField(r.participantId),
-      escapeCsvField(r.questionId),
-      escapeCsvField(question?.title ?? ""),
-      escapeCsvField(question?.type ?? ""),
-      escapeCsvField(selectedAnswers),
-      r.isCorrect === 1 ? "true" : "false",
-      String(r.pointsEarned ?? 0),
-      escapeCsvField(new Date(r.submittedAt).toISOString()),
-    ].join(",");
-  });
+      if (response) {
+        const choiceIdList: string[] = (() => {
+          try {
+            return JSON.parse(response.choiceIds) as string[];
+          } catch {
+            return [];
+          }
+        })();
+        const selectedAnswers = choiceIdList
+          .map((id) => choiceMap.get(id)?.text ?? id)
+          .join(";");
+
+        rows.push(
+          [
+            escapeCsvField(participant.displayName),
+            escapeCsvField(participant.id),
+            escapeCsvField(question.id),
+            escapeCsvField(question.title),
+            escapeCsvField(question.type),
+            escapeCsvField(selectedAnswers),
+            "true",
+            response.isCorrect === 1 ? "true" : "false",
+            String(response.pointsEarned ?? 0),
+            escapeCsvField(new Date(response.submittedAt).toISOString()),
+          ].join(",")
+        );
+      } else {
+        rows.push(
+          [
+            escapeCsvField(participant.displayName),
+            escapeCsvField(participant.id),
+            escapeCsvField(question.id),
+            escapeCsvField(question.title),
+            escapeCsvField(question.type),
+            "",
+            "false",
+            "false",
+            "0",
+            "",
+          ].join(",")
+        );
+      }
+    }
+  }
 
   return [headers.join(","), ...rows].join("\n");
 }

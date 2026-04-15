@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { quizzes, questions } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 async function getQuizzesWithCounts() {
   const allQuizzes = db.select().from(quizzes).orderBy(desc(quizzes.createdAt)).all();
   return allQuizzes.map((quiz) => ({
@@ -15,7 +17,7 @@ export default async function QuizzesPage() {
   const allQuizzes = await getQuizzesWithCounts();
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Quizzes</h1>
         <Link

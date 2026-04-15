@@ -32,7 +32,7 @@ export default function NewQuizPage() {
   }
 
   return (
-    <div className="max-w-lg">
+    <div className="max-w-lg mx-auto">
       <h1 className="text-3xl font-bold mb-8">New Quiz</h1>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>

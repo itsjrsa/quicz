@@ -167,7 +167,7 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex-1 mr-4">
@@ -212,94 +212,154 @@ export default function QuizEditor({ initialData, quizId }: Props) {
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
       {/* Questions */}
-      <div className="space-y-6">
-        {questions.map((q, qi) => (
-          <div key={q.id} className="border border-gray-200 rounded-lg p-5">
-            <div className="flex items-start gap-3">
-              <span className="text-sm text-gray-400 font-mono pt-2 shrink-0">Q{qi + 1}</span>
-              <div className="flex-1 space-y-3">
-                <input
-                  type="text"
-                  value={q.title}
-                  onChange={(e) => updateQuestion(q.id, { title: e.target.value })}
-                  className="w-full text-base font-medium border-0 border-b border-gray-200 focus:border-black focus:outline-none pb-1 bg-transparent"
-                  placeholder="Question text"
-                />
-                <div className="flex gap-3 text-sm">
-                  <select
-                    value={q.type}
-                    onChange={(e) => updateQuestion(q.id, { type: e.target.value })}
-                    className="border border-gray-300 rounded px-2 py-1 text-sm"
-                  >
-                    <option value="single">Single choice</option>
-                    <option value="multi">Multiple choice</option>
-                    <option value="binary">Binary (Yes/No)</option>
-                  </select>
-                  <label className="flex items-center gap-1 text-gray-600">
-                    Points:
-                    <input
-                      type="number"
-                      value={q.points}
-                      onChange={(e) => updateQuestion(q.id, { points: Number(e.target.value) })}
-                      className="w-12 border border-gray-300 rounded px-1 py-0.5 text-sm"
-                      min={0}
-                    />
-                  </label>
+      <div className="space-y-4">
+        {questions.map((q, qi) => {
+          const types: { value: string; label: string }[] = [
+            { value: "single", label: "Single" },
+            { value: "multi", label: "Multi" },
+            { value: "binary", label: "Yes/No" },
+          ];
+          return (
+            <div
+              key={q.id}
+              className="group relative rounded-xl bg-gray-50/60 ring-1 ring-gray-200/70 hover:ring-gray-300 focus-within:ring-gray-400 focus-within:bg-white transition p-5"
+            >
+              <button
+                type="button"
+                onClick={() => removeQuestion(q.id)}
+                className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition"
+                title="Remove question"
+              >
+                ×
+              </button>
+
+              <div className="flex items-center gap-2 mb-3">
+                <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded-full bg-black text-white text-[11px] font-semibold tracking-wide">
+                  Q{qi + 1}
+                </span>
+              </div>
+
+              <input
+                type="text"
+                value={q.title}
+                onChange={(e) => updateQuestion(q.id, { title: e.target.value })}
+                className="w-full text-lg font-medium border-0 focus:outline-none bg-transparent placeholder:text-gray-300"
+                placeholder="Question text"
+              />
+
+              <div className="flex items-center gap-3 mt-2 mb-4">
+                <div className="inline-flex p-0.5 rounded-full bg-gray-200/70 text-xs">
+                  {types.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => updateQuestion(q.id, { type: t.value })}
+                      className={`px-3 py-1 rounded-full transition ${
+                        q.type === t.value
+                          ? "bg-white text-black shadow-sm font-medium"
+                          : "text-gray-500 hover:text-black"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Choices */}
-                <div className="space-y-2">
-                  {q.choices.map((c) => (
-                    <div key={c.id} className="flex items-center gap-2">
-                      <input
-                        type={q.type === "multi" ? "checkbox" : "radio"}
-                        checked={Boolean(c.isCorrect)}
-                        onChange={() => toggleCorrect(q.id, c.id, q.type)}
-                        className="shrink-0"
+                <div className="inline-flex items-center gap-1 rounded-full bg-gray-200/70 text-xs px-1 py-0.5">
+                  <span className="pl-2 pr-1 text-gray-500">Points</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateQuestion(q.id, { points: Math.max(0, q.points - 1) })
+                    }
+                    className="w-6 h-6 rounded-full hover:bg-white text-gray-600 hover:text-black flex items-center justify-center"
+                  >
+                    −
+                  </button>
+                  <span className="w-5 text-center font-medium tabular-nums">
+                    {q.points}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => updateQuestion(q.id, { points: q.points + 1 })}
+                    className="w-6 h-6 rounded-full hover:bg-white text-gray-600 hover:text-black flex items-center justify-center"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Choices */}
+              <div className="space-y-1">
+                {q.choices.map((c, ci) => {
+                  const isCorrect = Boolean(c.isCorrect);
+                  return (
+                    <div
+                      key={c.id}
+                      className="group/choice flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-white transition"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleCorrect(q.id, c.id, q.type)}
                         title="Mark as correct"
-                      />
+                        className={`shrink-0 w-5 h-5 flex items-center justify-center transition ${
+                          q.type === "multi" ? "rounded-[5px]" : "rounded-full"
+                        } ${
+                          isCorrect
+                            ? "bg-black border-2 border-black"
+                            : "border-2 border-gray-300 hover:border-gray-500"
+                        }`}
+                      >
+                        {isCorrect && (
+                          <svg
+                            viewBox="0 0 12 12"
+                            className="w-3 h-3 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="2.5,6.5 5,9 9.5,3.5" />
+                          </svg>
+                        )}
+                      </button>
                       <input
                         type="text"
                         value={c.text}
-                        onChange={(e) => updateChoice(q.id, c.id, { text: e.target.value })}
-                        className="flex-1 text-sm border-0 border-b border-gray-200 focus:border-black focus:outline-none pb-0.5 bg-transparent"
-                        placeholder={`Choice ${q.choices.indexOf(c) + 1}`}
+                        onChange={(e) =>
+                          updateChoice(q.id, c.id, { text: e.target.value })
+                        }
+                        className="flex-1 text-sm border-0 focus:outline-none bg-transparent placeholder:text-gray-300"
+                        placeholder={`Choice ${ci + 1}`}
                       />
                       <button
                         type="button"
                         onClick={() => removeChoice(q.id, c.id)}
-                        className="text-gray-300 hover:text-red-500 text-lg leading-none"
+                        className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover/choice:opacity-100 transition"
                         title="Remove choice"
                       >
                         ×
                       </button>
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => addChoice(q.id)}
-                    className="text-sm text-gray-400 hover:text-black mt-1"
-                  >
-                    + Add choice
-                  </button>
-                </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => addChoice(q.id)}
+                  className="ml-2 mt-1 text-xs text-gray-400 hover:text-black transition"
+                >
+                  + Add choice
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => removeQuestion(q.id)}
-                className="text-gray-300 hover:text-red-500 text-xl leading-none shrink-0"
-                title="Remove question"
-              >
-                ×
-              </button>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <button
           type="button"
           onClick={addQuestion}
-          className="w-full py-3 border-2 border-dashed border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 rounded-lg text-sm"
+          className="w-full py-4 rounded-xl border border-dashed border-gray-300 text-gray-400 hover:border-black hover:text-black hover:bg-gray-50 text-sm font-medium transition"
         >
           + Add Question
         </button>

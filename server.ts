@@ -2,10 +2,14 @@ import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { db } from "./src/db";
 import { setupSocketHandlers } from "./src/lib/socket/server";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT ?? "3000", 10);
+
+migrate(db, { migrationsFolder: "./src/db/migrations" });
 
 const app = next({ dev });
 const handle = app.getRequestHandler();
