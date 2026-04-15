@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { liveSessions, participants, responses, questions, choices } from "@/db/schema";
+import { db } from "../db";
+import { liveSessions, participants, responses, questions, choices } from "../db/schema";
 import { eq, inArray, asc } from "drizzle-orm";
 
 function escapeCsvField(value: string): string {

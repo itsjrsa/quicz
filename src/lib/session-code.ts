@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { liveSessions } from "@/db/schema";
+import { db } from "../db";
+import { liveSessions } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 
 const CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";

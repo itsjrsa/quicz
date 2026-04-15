@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { responses, choices, questions } from "@/db/schema";
+import { db } from "../db";
+import { responses, choices, questions } from "../db/schema";
 import { eq } from "drizzle-orm";
 
 export function scoreQuestion(questionId: string, sessionId: string): void {
