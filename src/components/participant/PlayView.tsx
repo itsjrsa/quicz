@@ -221,57 +221,92 @@ export default function PlayView({ sessionCode }: Props) {
 
         {/* Choices */}
         <div className="space-y-3 flex-1">
-          {state.choices.map((choice) => {
-            const isSelected = selectedChoices.includes(choice.id);
-            const distribution = results?.distribution.find((d) => d.choiceId === choice.id);
-            const isCorrectChoice = correct?.correctChoiceIds.includes(choice.id);
+          {(() => {
+            const showBars = state.phase === "results" && state.answersVisible && results;
+            const totalVotes = showBars
+              ? results.distribution.reduce((s, d) => s + d.count, 0)
+              : 0;
 
-            let choiceClass = "w-full px-5 py-4 rounded-xl border-2 text-left font-medium transition-colors ";
+            return state.choices.map((choice) => {
+              const isSelected = selectedChoices.includes(choice.id);
+              const distribution = results?.distribution.find((d) => d.choiceId === choice.id);
+              const isCorrectChoice = correct?.correctChoiceIds.includes(choice.id);
+              const count = distribution?.count ?? 0;
+              const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
 
-            if (state.phase === "results" && state.answersVisible) {
-              if (state.correctRevealed) {
-                if (isCorrectChoice) {
-                  choiceClass += "border-green-500 bg-green-50 text-green-800";
+              if (showBars) {
+                // Bar-chart style card
+                let borderColor = "border-gray-200";
+                let barColor = "bg-gray-200";
+                let textColor = "text-gray-800";
+
+                if (state.correctRevealed) {
+                  if (isCorrectChoice) {
+                    borderColor = "border-green-500";
+                    barColor = "bg-green-400";
+                    textColor = "text-green-800";
+                  } else if (isSelected) {
+                    borderColor = "border-red-300";
+                    barColor = "bg-red-200";
+                    textColor = "text-red-700";
+                  } else {
+                    borderColor = "border-gray-100";
+                    textColor = "text-gray-400";
+                  }
                 } else if (isSelected) {
-                  choiceClass += "border-red-300 bg-red-50 text-red-700";
-                } else {
-                  choiceClass += "border-gray-100 bg-gray-50 text-gray-400";
+                  borderColor = "border-black";
+                  barColor = "bg-gray-800";
                 }
-              } else {
-                choiceClass += isSelected
-                  ? "border-black bg-black text-white"
-                  : "border-gray-100 bg-gray-50 text-gray-500";
-              }
-            } else if (isSelected) {
-              choiceClass += "border-black bg-black text-white";
-            } else {
-              choiceClass += "border-gray-200 hover:border-gray-400";
-            }
 
-            return (
-              <button
-                key={choice.id}
-                onClick={() => toggleChoice(choice.id)}
-                disabled={isLocked || submitted}
-                className={choiceClass}
-              >
-                <div className="flex items-center justify-between">
-                  <span>{choice.text}</span>
-                  <div className="flex items-center gap-2">
-                    {state.correctRevealed && isCorrectChoice && (
-                      <span className="text-green-600 font-bold text-lg">✓</span>
-                    )}
-                    {state.correctRevealed && isSelected && !isCorrectChoice && (
-                      <span className="text-red-500 font-bold text-lg">✗</span>
-                    )}
-                    {state.answersVisible && distribution && (
-                      <span className="text-sm opacity-70">{distribution.count}</span>
-                    )}
+                return (
+                  <div
+                    key={choice.id}
+                    className={`relative w-full rounded-xl border-2 overflow-hidden ${borderColor}`}
+                  >
+                    {/* Bar fill */}
+                    <div
+                      className={`absolute inset-y-0 left-0 ${barColor} opacity-25 transition-all duration-500`}
+                      style={{ width: `${pct}%` }}
+                    />
+                    {/* Content */}
+                    <div className={`relative flex items-center justify-between px-5 py-4 font-medium ${textColor}`}>
+                      <span className="flex items-center gap-2">
+                        {state.correctRevealed && isCorrectChoice && (
+                          <span className="text-green-600 font-bold">✓</span>
+                        )}
+                        {state.correctRevealed && isSelected && !isCorrectChoice && (
+                          <span className="text-red-500 font-bold">✗</span>
+                        )}
+                        {choice.text}
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums">
+                        {count} <span className="font-normal opacity-60">({pct}%)</span>
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </button>
-            );
-          })}
+                );
+              }
+
+              // Normal clickable button (voting phase)
+              let choiceClass = "w-full px-5 py-4 rounded-xl border-2 text-left font-medium transition-colors ";
+              if (isSelected) {
+                choiceClass += "border-black bg-black text-white";
+              } else {
+                choiceClass += "border-gray-200 hover:border-gray-400";
+              }
+
+              return (
+                <button
+                  key={choice.id}
+                  onClick={() => toggleChoice(choice.id)}
+                  disabled={isLocked || submitted}
+                  className={choiceClass}
+                >
+                  {choice.text}
+                </button>
+              );
+            });
+          })()}
         </div>
 
         {/* Submit button */}
