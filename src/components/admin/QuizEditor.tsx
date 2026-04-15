@@ -104,7 +104,20 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   }
 
   function updateQuestion(qId: string, updates: Partial<Question>) {
-    setQuestions(questions.map((q) => (q.id === qId ? { ...q, ...updates } : q)));
+    setQuestions(
+      questions.map((q) => {
+        if (q.id !== qId) return q;
+        const merged = { ...q, ...updates };
+        // When switching to binary, lock choices to Yes / No
+        if (updates.type === "binary" && q.type !== "binary") {
+          merged.choices = [
+            { id: uuidv4(), text: "Yes", isCorrect: 0, order: 0 },
+            { id: uuidv4(), text: "No", isCorrect: 0, order: 1 },
+          ];
+        }
+        return merged;
+      })
+    );
   }
 
   function addChoice(qId: string) {
@@ -384,33 +397,41 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                           </svg>
                         )}
                       </button>
-                      <input
-                        type="text"
-                        value={c.text}
-                        onChange={(e) =>
-                          updateChoice(q.id, c.id, { text: e.target.value })
-                        }
-                        className="flex-1 text-sm border-0 focus:outline-none bg-transparent placeholder:text-gray-300"
-                        placeholder={`Choice ${ci + 1}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeChoice(q.id, c.id)}
-                        className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover/choice:opacity-100 transition"
-                        title="Remove choice"
-                      >
-                        ×
-                      </button>
+                      {q.type === "binary" ? (
+                        <span className="flex-1 text-sm text-gray-500 select-none">{c.text}</span>
+                      ) : (
+                        <input
+                          type="text"
+                          value={c.text}
+                          onChange={(e) =>
+                            updateChoice(q.id, c.id, { text: e.target.value })
+                          }
+                          className="flex-1 text-sm border-0 focus:outline-none bg-transparent placeholder:text-gray-300"
+                          placeholder={`Choice ${ci + 1}`}
+                        />
+                      )}
+                      {q.type !== "binary" && (
+                        <button
+                          type="button"
+                          onClick={() => removeChoice(q.id, c.id)}
+                          className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover/choice:opacity-100 transition"
+                          title="Remove choice"
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                   );
                 })}
-                <button
-                  type="button"
-                  onClick={() => addChoice(q.id)}
-                  className="ml-2 mt-1 text-xs text-gray-400 hover:text-black transition"
-                >
-                  + Add choice
-                </button>
+                {q.type !== "binary" && (
+                  <button
+                    type="button"
+                    onClick={() => addChoice(q.id)}
+                    className="ml-2 mt-1 text-xs text-gray-400 hover:text-black transition"
+                  >
+                    + Add choice
+                  </button>
+                )}
               </div>
             </div>
           );
