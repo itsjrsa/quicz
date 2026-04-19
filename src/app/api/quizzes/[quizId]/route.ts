@@ -63,6 +63,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     .set({
       title: body.title ?? quiz.title,
       description: body.description ?? quiz.description,
+      timeLimit: body.timeLimit === undefined ? quiz.timeLimit : body.timeLimit,
       updatedAt: now,
     })
     .where(eq(quizzes.id, quizId))

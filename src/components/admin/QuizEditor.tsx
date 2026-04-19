@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
@@ -25,6 +25,7 @@ interface QuizData {
   id: string;
   title: string;
   description: string | null;
+  timeLimit: number | null;
   questions: Question[];
 }
 
@@ -37,10 +38,57 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initialData.title);
   const [description, setDescription] = useState(initialData.description ?? "");
+  const [timeLimit, setTimeLimit] = useState<number | null>(initialData.timeLimit ?? null);
   const [questions, setQuestions] = useState<Question[]>(initialData.questions);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+
+  // Snapshot of the last persisted state — used to detect unsaved changes
+  const [savedSnapshot, setSavedSnapshot] = useState(() =>
+    JSON.stringify({
+      title: initialData.title,
+      description: initialData.description ?? "",
+      timeLimit: initialData.timeLimit ?? null,
+      questions: initialData.questions,
+    })
+  );
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({ title, description, timeLimit, questions }),
+    [title, description, timeLimit, questions]
+  );
+  const isDirty = currentSnapshot !== savedSnapshot;
+
+  // Warn on tab close / navigation away while dirty
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  // Validate quiz — returns list of human-readable problems
+  function validateQuiz(): string[] {
+    const problems: string[] = [];
+    if (!title.trim()) problems.push("Quiz title is empty.");
+    if (questions.length === 0) problems.push("Quiz has no questions.");
+    questions.forEach((q, i) => {
+      const label = `Question ${i + 1}`;
+      if (!q.title.trim()) problems.push(`${label}: missing question text.`);
+      if (q.choices.length < 2) problems.push(`${label}: needs at least 2 choices.`);
+      const emptyChoices = q.choices.filter((c) => !c.text.trim()).length;
+      if (emptyChoices > 0) problems.push(`${label}: ${emptyChoices} empty choice${emptyChoices > 1 ? "s" : ""}.`);
+      const correctCount = q.choices.filter((c) => c.isCorrect).length;
+      if (correctCount === 0) problems.push(`${label}: no correct answer marked.`);
+      if ((q.type === "single" || q.type === "binary") && correctCount > 1) {
+        problems.push(`${label}: ${q.type} question can only have one correct answer.`);
+      }
+    });
+    return problems;
+  }
 
   function addQuestion() {
     const newQ: Question = {
@@ -63,7 +111,27 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   }
 
   function updateQuestion(qId: string, updates: Partial<Question>) {
-    setQuestions(questions.map((q) => (q.id === qId ? { ...q, ...updates } : q)));
+    setQuestions(
+      questions.map((q) => {
+        if (q.id !== qId) return q;
+        const merged = { ...q, ...updates };
+        // When switching to binary, lock choices to Yes / No
+        if (updates.type === "binary" && q.type !== "binary") {
+          merged.choices = [
+            { id: uuidv4(), text: "Yes", isCorrect: 0, order: 0 },
+            { id: uuidv4(), text: "No", isCorrect: 0, order: 1 },
+          ];
+        }
+        // When switching away from binary, reset to blank default choices
+        if (q.type === "binary" && updates.type && updates.type !== "binary") {
+          merged.choices = [
+            { id: uuidv4(), text: "", isCorrect: 0, order: 0 },
+            { id: uuidv4(), text: "", isCorrect: 0, order: 1 },
+          ];
+        }
+        return merged;
+      })
+    );
   }
 
   function addChoice(qId: string) {
@@ -136,12 +204,20 @@ export default function QuizEditor({ initialData, quizId }: Props) {
     const res = await fetch(`/api/quizzes/${quizId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description: description || null, questions }),
+      body: JSON.stringify({
+        title,
+        description: description || null,
+        timeLimit,
+        questions,
+      }),
     });
 
     setSaving(false);
     if (res.ok) {
       setSaved(true);
+      setSavedSnapshot(
+        JSON.stringify({ title, description, timeLimit, questions })
+      );
       setTimeout(() => setSaved(false), 2000);
     } else {
       setError("Failed to save. Please try again.");
@@ -149,6 +225,18 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   }
 
   async function handleStartSession() {
+    setError("");
+    const problems = validateQuiz();
+    if (problems.length > 0) {
+      setError("Cannot start session:\n• " + problems.join("\n• "));
+      return;
+    }
+    if (isDirty) {
+      const ok = confirm("You have unsaved changes. Save before starting the session?");
+      if (ok) {
+        await handleSave();
+      }
+    }
     const res = await fetch("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -157,6 +245,8 @@ export default function QuizEditor({ initialData, quizId }: Props) {
     if (res.ok) {
       const session = await res.json() as { id: string };
       router.push(`/admin/sessions/${session.id}/present`);
+    } else {
+      setError("Failed to start session.");
     }
   }
 
@@ -185,14 +275,34 @@ export default function QuizEditor({ initialData, quizId }: Props) {
             className="text-sm text-gray-500 w-full border-0 focus:outline-none bg-transparent mt-1"
             placeholder="Description (optional)"
           />
+          <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+            <label htmlFor="quiz-time-limit">Time per question (seconds)</label>
+            <input
+              id="quiz-time-limit"
+              type="number"
+              min={0}
+              value={timeLimit ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") {
+                  setTimeLimit(null);
+                } else {
+                  const n = parseInt(v, 10);
+                  setTimeLimit(Number.isFinite(n) && n > 0 ? n : null);
+                }
+              }}
+              placeholder="no timer"
+              className="w-20 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-black"
+            />
+          </div>
         </div>
         <div className="flex gap-2 shrink-0">
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !isDirty}
             className="px-4 py-2 bg-black text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50"
           >
-            {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
+            {saving ? "Saving…" : saved ? "Saved ✓" : isDirty ? "Save" : "Saved"}
           </button>
           <button
             onClick={handleStartSession}
@@ -209,7 +319,11 @@ export default function QuizEditor({ initialData, quizId }: Props) {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+      {error && (
+        <pre className="text-sm text-red-600 mb-4 whitespace-pre-wrap font-sans bg-red-50 border border-red-200 rounded-md p-3">
+          {error}
+        </pre>
+      )}
 
       {/* Questions */}
       <div className="space-y-4">
@@ -324,33 +438,41 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                           </svg>
                         )}
                       </button>
-                      <input
-                        type="text"
-                        value={c.text}
-                        onChange={(e) =>
-                          updateChoice(q.id, c.id, { text: e.target.value })
-                        }
-                        className="flex-1 text-sm border-0 focus:outline-none bg-transparent placeholder:text-gray-300"
-                        placeholder={`Choice ${ci + 1}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeChoice(q.id, c.id)}
-                        className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover/choice:opacity-100 transition"
-                        title="Remove choice"
-                      >
-                        ×
-                      </button>
+                      {q.type === "binary" ? (
+                        <span className="flex-1 text-sm text-gray-500 select-none">{c.text}</span>
+                      ) : (
+                        <input
+                          type="text"
+                          value={c.text}
+                          onChange={(e) =>
+                            updateChoice(q.id, c.id, { text: e.target.value })
+                          }
+                          className="flex-1 text-sm border-0 focus:outline-none bg-transparent placeholder:text-gray-300"
+                          placeholder={`Choice ${ci + 1}`}
+                        />
+                      )}
+                      {q.type !== "binary" && (
+                        <button
+                          type="button"
+                          onClick={() => removeChoice(q.id, c.id)}
+                          className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover/choice:opacity-100 transition"
+                          title="Remove choice"
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                   );
                 })}
-                <button
-                  type="button"
-                  onClick={() => addChoice(q.id)}
-                  className="ml-2 mt-1 text-xs text-gray-400 hover:text-black transition"
-                >
-                  + Add choice
-                </button>
+                {q.type !== "binary" && (
+                  <button
+                    type="button"
+                    onClick={() => addChoice(q.id)}
+                    className="ml-2 mt-1 text-xs text-gray-400 hover:text-black transition"
+                  >
+                    + Add choice
+                  </button>
+                )}
               </div>
             </div>
           );

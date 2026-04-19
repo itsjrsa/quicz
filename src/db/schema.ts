@@ -9,6 +9,7 @@ export const quizzes = sqliteTable("quizzes", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description"),
+  timeLimit: integer("time_limit"),
   createdAt: integer("created_at").notNull().$defaultFn(() => Date.now()),
   updatedAt: integer("updated_at").notNull().$defaultFn(() => Date.now()),
 });
@@ -52,6 +53,7 @@ export const liveSessions = sqliteTable("live_sessions", {
     .default("lobby"),
   answersVisible: integer("answers_visible").notNull().default(0),
   correctRevealed: integer("correct_revealed").notNull().default(0),
+  questionOpenedAt: integer("question_opened_at"),
   createdAt: integer("created_at").notNull().$defaultFn(() => Date.now()),
   finishedAt: integer("finished_at"),
 });

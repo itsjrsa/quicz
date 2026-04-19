@@ -1,8 +1,11 @@
 export interface SessionStatePayload {
   phase: "lobby" | "question_open" | "question_locked" | "results" | "final";
   currentQuestionIndex: number;
+  totalQuestions: number;
   answersVisible: boolean;
   correctRevealed: boolean;
+  timeLimit: number | null;
+  questionOpenedAt: number | null;
   question: {
     id: string;
     title: string;
@@ -14,9 +17,20 @@ export interface SessionStatePayload {
   mySubmission: string[] | null; // choiceIds submitted by this participant
 }
 
+export interface SubmitRejectedPayload {
+  questionId: string;
+  reason: "time_expired";
+}
+
 export interface ResultsPayload {
   questionId: string;
   distribution: { choiceId: string; count: number }[];
+}
+
+export interface ResponseCountPayload {
+  questionId: string;
+  count: number;
+  total: number;
 }
 
 export interface CorrectPayload {
@@ -39,12 +53,15 @@ export interface AdminStatePayload {
   sessionId: string;
   phase: string;
   currentQuestionIndex: number;
+  totalQuestions: number;
   answersVisible: boolean;
   correctRevealed: boolean;
   status: string;
   participantCount: number;
   responseCount: number;
   totalParticipants: number;
+  timeLimit: number | null;
+  questionOpenedAt: number | null;
   question: {
     id: string;
     title: string;

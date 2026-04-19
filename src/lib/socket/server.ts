@@ -6,6 +6,7 @@ import {
   responses,
   questions,
   choices,
+  quizzes,
 } from "../../db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { scoreQuestion } from "../scoring";
@@ -21,8 +22,15 @@ import type {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+const GRACE_MS = 1000;
+const autoLockTimers = new Map<string, NodeJS.Timeout>();
+
 function getSession(sessionId: string) {
   return db.select().from(liveSessions).where(eq(liveSessions.id, sessionId)).get() ?? null;
+}
+
+function getQuiz(quizId: string) {
+  return db.select().from(quizzes).where(eq(quizzes.id, quizId)).get() ?? null;
 }
 
 function getSessionByCode(code: string) {
@@ -53,6 +61,7 @@ function getResponseCount(sessionId: string, questionId: string): number {
 
 function buildSessionState(
   session: typeof liveSessions.$inferSelect,
+  quiz: typeof quizzes.$inferSelect | null,
   quizQuestions: (typeof questions.$inferSelect)[],
   allChoices: (typeof choices.$inferSelect)[],
   participantId?: string
@@ -86,8 +95,12 @@ function buildSessionState(
   return {
     phase: session.phase as SessionStatePayload["phase"],
     currentQuestionIndex: session.currentQuestionIndex,
+    totalQuestions: quizQuestions.length,
     answersVisible: Boolean(session.answersVisible),
     correctRevealed: Boolean(session.correctRevealed),
+    timeLimit: quiz?.timeLimit ?? null,
+    questionOpenedAt:
+      session.phase === "question_open" ? session.questionOpenedAt ?? null : null,
     question: question
       ? {
           id: question.id,
@@ -104,6 +117,7 @@ function buildSessionState(
 
 function buildAdminState(
   session: typeof liveSessions.$inferSelect,
+  quiz: typeof quizzes.$inferSelect | null,
   quizQuestions: (typeof questions.$inferSelect)[]
 ): AdminStatePayload {
   const participantCount = getParticipantCount(session.id);
@@ -117,12 +131,16 @@ function buildAdminState(
     sessionId: session.id,
     phase: session.phase,
     currentQuestionIndex: session.currentQuestionIndex,
+    totalQuestions: quizQuestions.length,
     answersVisible: Boolean(session.answersVisible),
     correctRevealed: Boolean(session.correctRevealed),
     status: session.status,
     participantCount,
     responseCount,
     totalParticipants: participantCount,
+    timeLimit: quiz?.timeLimit ?? null,
+    questionOpenedAt:
+      session.phase === "question_open" ? session.questionOpenedAt ?? null : null,
     question: question
       ? { id: question.id, title: question.title, type: question.type, points: question.points }
       : null,
@@ -133,15 +151,16 @@ function broadcastSessionState(
   io: SocketIOServer,
   session: typeof liveSessions.$inferSelect
 ) {
+  const quiz = getQuiz(session.quizId);
   const quizQuestions = getQuestions(session.quizId);
   const allChoices = getChoices(quizQuestions.map((q) => q.id));
 
   // Broadcast common state (without personalized mySubmission) to all participants
-  const statePayload = buildSessionState(session, quizQuestions, allChoices);
+  const statePayload = buildSessionState(session, quiz, quizQuestions, allChoices);
   io.to(`session:${session.code}`).emit("session:state", statePayload);
 
   // Admin state
-  const adminPayload = buildAdminState(session, quizQuestions);
+  const adminPayload = buildAdminState(session, quiz, quizQuestions);
   io.to(`admin:${session.id}`).emit("admin:state", adminPayload);
 }
 
@@ -193,6 +212,59 @@ function computeScoreboard(
   });
 }
 
+// ─── Auto-lock scheduler ────────────────────────────────────────────────────
+
+function clearAutoLock(sessionId: string) {
+  const handle = autoLockTimers.get(sessionId);
+  if (handle) {
+    clearTimeout(handle);
+    autoLockTimers.delete(sessionId);
+  }
+}
+
+function autoLockQuestion(
+  io: SocketIOServer,
+  sessionId: string,
+  expectedQuestionIndex: number
+) {
+  autoLockTimers.delete(sessionId);
+  const session = getSession(sessionId);
+  if (!session) return;
+  if (session.phase !== "question_open") return;
+  if (session.currentQuestionIndex !== expectedQuestionIndex) return;
+
+  db.update(liveSessions)
+    .set({ phase: "question_locked" })
+    .where(eq(liveSessions.id, session.id))
+    .run();
+
+  const quizQuestions = getQuestions(session.quizId);
+  const currentQuestion = quizQuestions[session.currentQuestionIndex];
+  if (currentQuestion) {
+    scoreQuestion(currentQuestion.id, session.id);
+  }
+
+  const updated = getSession(sessionId)!;
+  broadcastSessionState(io, updated);
+}
+
+function scheduleAutoLock(io: SocketIOServer, sessionId: string) {
+  clearAutoLock(sessionId);
+  const session = getSession(sessionId);
+  if (!session || session.phase !== "question_open") return;
+  const quiz = getQuiz(session.quizId);
+  if (!quiz || !quiz.timeLimit || !session.questionOpenedAt) return;
+
+  const expectedIndex = session.currentQuestionIndex;
+  const deadline = session.questionOpenedAt + quiz.timeLimit * 1000;
+  const delay = Math.max(0, deadline - Date.now());
+  const handle = setTimeout(
+    () => autoLockQuestion(io, sessionId, expectedIndex),
+    delay
+  );
+  autoLockTimers.set(sessionId, handle);
+}
+
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
 export function setupSocketHandlers(io: SocketIOServer) {
@@ -232,9 +304,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
       socket.emit("participant:confirmed", { participantId: participant.id });
 
       // Send personalized state (includes mySubmission)
+      const quiz = getQuiz(session.quizId);
       const quizQuestions = getQuestions(session.quizId);
       const allChoices = getChoices(quizQuestions.map((q) => q.id));
-      const state = buildSessionState(session, quizQuestions, allChoices, participant.id);
+      const state = buildSessionState(session, quiz, quizQuestions, allChoices, participant.id);
       socket.emit("session:state", state);
     });
 
@@ -245,6 +318,18 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
       const session = getSession(sessionId);
       if (!session || session.phase !== "question_open") return;
+
+      const quiz = getQuiz(session.quizId);
+      if (quiz?.timeLimit && session.questionOpenedAt) {
+        const deadline = session.questionOpenedAt + quiz.timeLimit * 1000 + GRACE_MS;
+        if (Date.now() > deadline) {
+          socket.emit("session:submit-rejected", {
+            questionId: payload.questionId,
+            reason: "time_expired",
+          });
+          return;
+        }
+      }
 
       if (!Array.isArray(payload.choiceIds) || payload.choiceIds.length === 0) return;
 
@@ -284,6 +369,15 @@ export function setupSocketHandlers(io: SocketIOServer) {
         count: responseCount,
         total: totalParticipants,
       });
+      // Also broadcast to participants so they can see live progress
+      const sessionCode = (socket.data as { sessionCode?: string }).sessionCode;
+      if (sessionCode) {
+        io.to(`session:${sessionCode}`).emit("session:response-count", {
+          questionId: payload.questionId,
+          count: responseCount,
+          total: totalParticipants,
+        });
+      }
     });
 
     // ── Admin join ──────────────────────────────────────────────────────────
@@ -294,8 +388,9 @@ export function setupSocketHandlers(io: SocketIOServer) {
       socket.join(`admin:${session.id}`);
       socket.data.adminSessionId = session.id;
 
+      const quiz = getQuiz(session.quizId);
       const quizQuestions = getQuestions(session.quizId);
-      const adminPayload = buildAdminState(session, quizQuestions);
+      const adminPayload = buildAdminState(session, quiz, quizQuestions);
       socket.emit("admin:state", adminPayload);
     });
 
@@ -306,7 +401,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
       if (session.phase === "lobby") {
         db.update(liveSessions)
-          .set({ phase: "question_open", currentQuestionIndex: 0, answersVisible: 0, correctRevealed: 0 })
+          .set({
+            phase: "question_open",
+            currentQuestionIndex: 0,
+            answersVisible: 0,
+            correctRevealed: 0,
+            questionOpenedAt: Date.now(),
+          })
           .where(eq(liveSessions.id, session.id))
           .run();
       } else if (session.phase === "results") {
@@ -314,7 +415,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
         const nextIndex = session.currentQuestionIndex + 1;
         if (nextIndex < quizQuestions.length) {
           db.update(liveSessions)
-            .set({ phase: "question_open", currentQuestionIndex: nextIndex, answersVisible: 0, correctRevealed: 0 })
+            .set({
+              phase: "question_open",
+              currentQuestionIndex: nextIndex,
+              answersVisible: 0,
+              correctRevealed: 0,
+              questionOpenedAt: Date.now(),
+            })
             .where(eq(liveSessions.id, session.id))
             .run();
         }
@@ -322,6 +429,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
       const updated = getSession(payload.sessionId)!;
       broadcastSessionState(io, updated);
+      scheduleAutoLock(io, updated.id);
     });
 
     // ── Admin: prev ─────────────────────────────────────────────────────────
@@ -340,8 +448,9 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
       // Only notify admin, not participants
       const updated = getSession(payload.sessionId)!;
+      const quiz = getQuiz(updated.quizId);
       const quizQuestions = getQuestions(updated.quizId);
-      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quizQuestions));
+      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quiz, quizQuestions));
     });
 
     // ── Admin: open-voting ──────────────────────────────────────────────────
@@ -350,18 +459,20 @@ export function setupSocketHandlers(io: SocketIOServer) {
       if (!session || session.phase !== "question_locked") return;
 
       db.update(liveSessions)
-        .set({ phase: "question_open" })
+        .set({ phase: "question_open", questionOpenedAt: Date.now() })
         .where(eq(liveSessions.id, session.id))
         .run();
 
       const updated = getSession(payload.sessionId)!;
       broadcastSessionState(io, updated);
+      scheduleAutoLock(io, updated.id);
     });
 
     // ── Admin: lock-voting ──────────────────────────────────────────────────
     socket.on("admin:lock-voting", (payload: AdminActionPayload) => {
       const session = getSession(payload.sessionId);
       if (!session || session.phase !== "question_open") return;
+      clearAutoLock(session.id);
 
       db.update(liveSessions)
         .set({ phase: "question_locked" })
@@ -494,6 +605,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
     socket.on("admin:end-session", (payload: AdminActionPayload) => {
       const session = getSession(payload.sessionId);
       if (!session) return;
+      clearAutoLock(session.id);
 
       db.update(liveSessions)
         .set({ status: "finished", finishedAt: Date.now() })
@@ -503,8 +615,19 @@ export function setupSocketHandlers(io: SocketIOServer) {
       io.to(`session:${session.code}`).emit("session:ended", {});
 
       const updated = getSession(payload.sessionId)!;
+      const quiz = getQuiz(updated.quizId);
       const quizQuestions = getQuestions(updated.quizId);
-      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quizQuestions));
+      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quiz, quizQuestions));
     });
   });
+
+  // Boot recovery: re-schedule auto-lock for sessions currently in question_open
+  const activeSessions = db
+    .select()
+    .from(liveSessions)
+    .where(eq(liveSessions.phase, "question_open"))
+    .all();
+  for (const s of activeSessions) {
+    scheduleAutoLock(io, s.id);
+  }
 }
