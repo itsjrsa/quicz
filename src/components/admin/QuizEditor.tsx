@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
+import { buttonClass } from "@/components/ui";
 
 interface Choice {
   id: string;
@@ -34,6 +35,24 @@ interface Props {
   quizId: string;
 }
 
+function formatRelative(ms: number | null): string {
+  if (ms == null) return "";
+  const age = Date.now() - ms;
+  if (age < 5000) return "just now";
+  if (age < 60000) return `${Math.floor(age / 1000)}s ago`;
+  const m = Math.floor(age / 60000);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return new Date(ms).toLocaleString();
+}
+
+const QUESTION_TYPE_ICONS: Record<string, string> = {
+  single: "●",
+  multi: "☰",
+  binary: "Y/N",
+};
+
 export default function QuizEditor({ initialData, quizId }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initialData.title);
@@ -41,10 +60,10 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   const [timeLimit, setTimeLimit] = useState<number | null>(initialData.timeLimit ?? null);
   const [questions, setQuestions] = useState<Question[]>(initialData.questions);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [savedTick, setSavedTick] = useState(0);
 
-  // Snapshot of the last persisted state — used to detect unsaved changes
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
     JSON.stringify({
       title: initialData.title,
@@ -59,7 +78,6 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   );
   const isDirty = currentSnapshot !== savedSnapshot;
 
-  // Warn on tab close / navigation away while dirty
   useEffect(() => {
     if (!isDirty) return;
     const handler = (e: BeforeUnloadEvent) => {
@@ -70,7 +88,18 @@ export default function QuizEditor({ initialData, quizId }: Props) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
-  // Validate quiz — returns list of human-readable problems
+  // Tick label "Saved · 2m ago" forward
+  useEffect(() => {
+    if (!savedAt) return;
+    const id = setInterval(() => setSavedTick((t) => t + 1), 30000);
+    return () => clearInterval(id);
+  }, [savedAt]);
+
+  // Keep ref to state for the Cmd-S handler (which captures its closure)
+  const stateRef = useRef({ isDirty, saving });
+  stateRef.current = { isDirty, saving };
+  const handleSaveRef = useRef<() => Promise<void>>(null!);
+
   function validateQuiz(): string[] {
     const problems: string[] = [];
     if (!title.trim()) problems.push("Quiz title is empty.");
@@ -115,14 +144,12 @@ export default function QuizEditor({ initialData, quizId }: Props) {
       questions.map((q) => {
         if (q.id !== qId) return q;
         const merged = { ...q, ...updates };
-        // When switching to binary, lock choices to Yes / No
         if (updates.type === "binary" && q.type !== "binary") {
           merged.choices = [
             { id: uuidv4(), text: "Yes", isCorrect: 0, order: 0 },
             { id: uuidv4(), text: "No", isCorrect: 0, order: 1 },
           ];
         }
-        // When switching away from binary, reset to blank default choices
         if (q.type === "binary" && updates.type && updates.type !== "binary") {
           merged.choices = [
             { id: uuidv4(), text: "", isCorrect: 0, order: 0 },
@@ -175,7 +202,6 @@ export default function QuizEditor({ initialData, quizId }: Props) {
       questions.map((q) => {
         if (q.id !== qId) return q;
         if (type === "multi") {
-          // Toggle for multi
           return {
             ...q,
             choices: q.choices.map((c) =>
@@ -183,7 +209,6 @@ export default function QuizEditor({ initialData, quizId }: Props) {
             ),
           };
         } else {
-          // Single/binary: only one correct
           return {
             ...q,
             choices: q.choices.map((c) => ({
@@ -197,9 +222,9 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   }
 
   async function handleSave() {
+    if (!stateRef.current.isDirty) return;
     setSaving(true);
     setError("");
-    setSaved(false);
 
     const res = await fetch(`/api/quizzes/${quizId}`, {
       method: "PUT",
@@ -214,15 +239,27 @@ export default function QuizEditor({ initialData, quizId }: Props) {
 
     setSaving(false);
     if (res.ok) {
-      setSaved(true);
-      setSavedSnapshot(
-        JSON.stringify({ title, description, timeLimit, questions })
-      );
-      setTimeout(() => setSaved(false), 2000);
+      setSavedAt(Date.now());
+      setSavedSnapshot(JSON.stringify({ title, description, timeLimit, questions }));
     } else {
       setError("Failed to save. Please try again.");
     }
   }
+  handleSaveRef.current = handleSave;
+
+  // Cmd/Ctrl-S to save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (!stateRef.current.saving && stateRef.current.isDirty) {
+          void handleSaveRef.current?.();
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   async function handleStartSession() {
     setError("");
@@ -243,7 +280,7 @@ export default function QuizEditor({ initialData, quizId }: Props) {
       body: JSON.stringify({ quizId }),
     });
     if (res.ok) {
-      const session = await res.json() as { id: string };
+      const session = (await res.json()) as { id: string };
       router.push(`/admin/sessions/${session.id}/present`);
     } else {
       setError("Failed to start session.");
@@ -256,27 +293,35 @@ export default function QuizEditor({ initialData, quizId }: Props) {
     router.push("/admin/quizzes");
   }
 
+  void savedTick;
+  const saveLabel = saving
+    ? "Saving…"
+    : isDirty
+    ? "Save"
+    : savedAt
+    ? `Saved · ${formatRelative(savedAt)}`
+    : "Saved";
+
   return (
     <div className="max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex-1 mr-4">
+      <div className="flex items-start justify-between mb-8 gap-4">
+        <div className="flex-1 min-w-0">
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="text-3xl font-bold w-full border-0 border-b-2 border-transparent focus:border-black focus:outline-none bg-transparent"
+            className="text-3xl font-bold tracking-tight w-full border-0 border-b-2 border-transparent focus:border-ink focus:outline-none bg-transparent"
             placeholder="Quiz title"
           />
           <input
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="text-sm text-gray-500 w-full border-0 focus:outline-none bg-transparent mt-1"
+            className="text-sm text-ink-muted w-full border-0 focus:outline-none bg-transparent mt-2 placeholder:text-ink-faint"
             placeholder="Description (optional)"
           />
-          <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-            <label htmlFor="quiz-time-limit">Time per question (seconds)</label>
+          <div className="flex items-center gap-2 mt-3 text-xs text-ink-muted">
+            <label htmlFor="quiz-time-limit">Time per question</label>
             <input
               id="quiz-time-limit"
               type="number"
@@ -291,28 +336,33 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                   setTimeLimit(Number.isFinite(n) && n > 0 ? n : null);
                 }
               }}
-              placeholder="no timer"
-              className="w-20 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-black"
+              placeholder="No limit"
+              className="w-24 border border-line rounded px-2 py-1 text-xs focus-visible:outline-none focus-visible:border-ink"
             />
+            <span className="text-ink-faint">seconds · blank for no limit</span>
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-ink-faint hidden sm:inline mr-1 tabular-nums">
+            {isDirty ? "Unsaved" : savedAt ? `Saved · ${formatRelative(savedAt)}` : ""}
+          </span>
           <button
             onClick={handleSave}
             disabled={saving || !isDirty}
-            className="px-4 py-2 bg-black text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50"
+            className={buttonClass("primary", "md")}
+            title="Save (Cmd/Ctrl-S)"
           >
-            {saving ? "Saving…" : saved ? "Saved ✓" : isDirty ? "Save" : "Saved"}
+            {saveLabel}
           </button>
           <button
             onClick={handleStartSession}
-            className="px-4 py-2 border border-black text-sm font-medium rounded-md hover:bg-gray-50"
+            className={buttonClass("secondary", "md")}
           >
-            Start Session
+            Start session
           </button>
           <button
             onClick={handleDelete}
-            className="px-4 py-2 text-sm text-red-600 hover:text-red-800"
+            className={buttonClass("danger", "md")}
           >
             Delete
           </button>
@@ -320,12 +370,11 @@ export default function QuizEditor({ initialData, quizId }: Props) {
       </div>
 
       {error && (
-        <pre className="text-sm text-red-600 mb-4 whitespace-pre-wrap font-sans bg-red-50 border border-red-200 rounded-md p-3">
+        <pre className="text-sm text-danger mb-4 whitespace-pre-wrap font-sans bg-danger-soft border border-danger/20 rounded-md p-3">
           {error}
         </pre>
       )}
 
-      {/* Questions */}
       <div className="space-y-4">
         {questions.map((q, qi) => {
           const types: { value: string; label: string }[] = [
@@ -336,20 +385,25 @@ export default function QuizEditor({ initialData, quizId }: Props) {
           return (
             <div
               key={q.id}
-              className="group relative rounded-xl bg-gray-50/60 ring-1 ring-gray-200/70 hover:ring-gray-300 focus-within:ring-gray-400 focus-within:bg-white transition p-5"
+              className="group relative rounded-xl bg-surface-muted ring-1 ring-line hover:ring-line-strong focus-within:ring-ink focus-within:bg-surface transition p-5"
             >
               <button
                 type="button"
                 onClick={() => removeQuestion(q.id)}
-                className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition"
+                className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-ink-faint hover:text-danger hover:bg-danger-soft transition opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
                 title="Remove question"
+                aria-label={`Remove question ${qi + 1}`}
               >
                 ×
               </button>
 
               <div className="flex items-center gap-2 mb-3">
-                <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded-full bg-black text-white text-[11px] font-semibold tracking-wide">
+                <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded-full bg-ink-strong text-surface text-[11px] font-semibold tracking-wide font-mono">
                   Q{qi + 1}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-ink-faint">
+                  <span aria-hidden>{QUESTION_TYPE_ICONS[q.type] ?? "?"}</span>
+                  <span>{q.type}</span>
                 </span>
               </div>
 
@@ -357,21 +411,21 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                 type="text"
                 value={q.title}
                 onChange={(e) => updateQuestion(q.id, { title: e.target.value })}
-                className="w-full text-lg font-medium border-0 focus:outline-none bg-transparent placeholder:text-gray-300"
+                className="w-full text-lg font-medium border-0 focus:outline-none bg-transparent placeholder:text-ink-faint"
                 placeholder="Question text"
               />
 
-              <div className="flex items-center gap-3 mt-2 mb-4">
-                <div className="inline-flex p-0.5 rounded-full bg-gray-200/70 text-xs">
+              <div className="flex items-center gap-3 mt-3 mb-4 flex-wrap">
+                <div className="inline-flex p-0.5 rounded-full bg-surface-sunken text-xs">
                   {types.map((t) => (
                     <button
                       key={t.value}
                       type="button"
                       onClick={() => updateQuestion(q.id, { type: t.value })}
-                      className={`px-3 py-1 rounded-full transition ${
+                      className={`px-3 py-1 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
                         q.type === t.value
-                          ? "bg-white text-black shadow-sm font-medium"
-                          : "text-gray-500 hover:text-black"
+                          ? "bg-surface text-ink shadow-sm font-medium"
+                          : "text-ink-muted hover:text-ink"
                       }`}
                     >
                       {t.label}
@@ -379,14 +433,15 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                   ))}
                 </div>
 
-                <div className="inline-flex items-center gap-1 rounded-full bg-gray-200/70 text-xs px-1 py-0.5">
-                  <span className="pl-2 pr-1 text-gray-500">Points</span>
+                <div className="inline-flex items-center gap-1 rounded-full bg-surface-sunken text-xs px-1 py-0.5">
+                  <span className="pl-2 pr-1 text-ink-muted">Points</span>
                   <button
                     type="button"
                     onClick={() =>
                       updateQuestion(q.id, { points: Math.max(0, q.points - 1) })
                     }
-                    className="w-6 h-6 rounded-full hover:bg-white text-gray-600 hover:text-black flex items-center justify-center"
+                    className="w-6 h-6 rounded-full hover:bg-surface text-ink-muted hover:text-ink flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                    aria-label="Decrease points"
                   >
                     −
                   </button>
@@ -396,38 +451,39 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                   <button
                     type="button"
                     onClick={() => updateQuestion(q.id, { points: q.points + 1 })}
-                    className="w-6 h-6 rounded-full hover:bg-white text-gray-600 hover:text-black flex items-center justify-center"
+                    className="w-6 h-6 rounded-full hover:bg-surface text-ink-muted hover:text-ink flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                    aria-label="Increase points"
                   >
                     +
                   </button>
                 </div>
               </div>
 
-              {/* Choices */}
               <div className="space-y-1">
                 {q.choices.map((c, ci) => {
                   const isCorrect = Boolean(c.isCorrect);
                   return (
                     <div
                       key={c.id}
-                      className="group/choice flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-white transition"
+                      className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-surface transition"
                     >
                       <button
                         type="button"
                         onClick={() => toggleCorrect(q.id, c.id, q.type)}
                         title="Mark as correct"
-                        className={`shrink-0 w-5 h-5 flex items-center justify-center transition ${
+                        aria-label={isCorrect ? "Correct answer" : "Mark as correct"}
+                        className={`shrink-0 w-5 h-5 flex items-center justify-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
                           q.type === "multi" ? "rounded-[5px]" : "rounded-full"
                         } ${
                           isCorrect
-                            ? "bg-black border-2 border-black"
-                            : "border-2 border-gray-300 hover:border-gray-500"
+                            ? "bg-ink-strong border-2 border-ink-strong"
+                            : "border-2 border-line-strong hover:border-ink"
                         }`}
                       >
                         {isCorrect && (
                           <svg
                             viewBox="0 0 12 12"
-                            className="w-3 h-3 text-white"
+                            className="w-3 h-3 text-surface"
                             fill="none"
                             stroke="currentColor"
                             strokeWidth="2.5"
@@ -439,7 +495,7 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                         )}
                       </button>
                       {q.type === "binary" ? (
-                        <span className="flex-1 text-sm text-gray-500 select-none">{c.text}</span>
+                        <span className="flex-1 text-sm text-ink-muted select-none">{c.text}</span>
                       ) : (
                         <input
                           type="text"
@@ -447,7 +503,7 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                           onChange={(e) =>
                             updateChoice(q.id, c.id, { text: e.target.value })
                           }
-                          className="flex-1 text-sm border-0 focus:outline-none bg-transparent placeholder:text-gray-300"
+                          className="flex-1 text-sm border-0 focus:outline-none bg-transparent placeholder:text-ink-faint"
                           placeholder={`Choice ${ci + 1}`}
                         />
                       )}
@@ -455,8 +511,9 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                         <button
                           type="button"
                           onClick={() => removeChoice(q.id, c.id)}
-                          className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover/choice:opacity-100 transition"
+                          className="w-6 h-6 flex items-center justify-center rounded-full text-ink-faint hover:text-danger hover:bg-danger-soft transition opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
                           title="Remove choice"
+                          aria-label={`Remove choice ${ci + 1}`}
                         >
                           ×
                         </button>
@@ -468,7 +525,7 @@ export default function QuizEditor({ initialData, quizId }: Props) {
                   <button
                     type="button"
                     onClick={() => addChoice(q.id)}
-                    className="ml-2 mt-1 text-xs text-gray-400 hover:text-black transition"
+                    className="ml-2 mt-1 text-xs text-ink-muted hover:text-ink transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink rounded px-1"
                   >
                     + Add choice
                   </button>
@@ -481,9 +538,9 @@ export default function QuizEditor({ initialData, quizId }: Props) {
         <button
           type="button"
           onClick={addQuestion}
-          className="w-full py-4 rounded-xl border border-dashed border-gray-300 text-gray-400 hover:border-black hover:text-black hover:bg-gray-50 text-sm font-medium transition"
+          className="w-full py-4 rounded-xl border border-dashed border-line-strong text-ink-muted hover:border-ink hover:text-ink hover:bg-surface-muted text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
         >
-          + Add Question
+          + Add question
         </button>
       </div>
     </div>

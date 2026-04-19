@@ -24,37 +24,53 @@ export default async function QuizSessionsPage({ params }: Params) {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-8">
-        <Link href="/admin/quizzes" className="text-sm text-gray-500 hover:text-black">
+        <Link
+          href="/admin/quizzes"
+          className="text-sm text-ink-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-1"
+        >
           ← Quizzes
         </Link>
-        <h1 className="text-3xl font-bold mt-2">{quiz.title} — Sessions</h1>
+        <h1 className="text-3xl font-bold tracking-tight mt-2">
+          {quiz.title}
+          <span className="text-ink-faint font-normal"> · </span>
+          <span className="font-normal text-ink-muted">Sessions</span>
+        </h1>
       </div>
 
       {sessions.length === 0 ? (
-        <p className="text-gray-400">No sessions yet.</p>
+        <p className="text-ink-faint">No sessions yet.</p>
       ) : (
-        <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+        <ul className="divide-y divide-line border border-line rounded-xl overflow-hidden bg-surface">
           {sessions.map((s) => (
-            <li key={s.id} className="flex items-center justify-between px-5 py-4 hover:bg-gray-50">
+            <li
+              key={s.id}
+              className="flex items-center justify-between px-5 py-4 hover:bg-surface-muted transition-colors"
+            >
               <div>
-                <span className="font-mono font-bold text-lg">{s.code}</span>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <span className="font-mono font-bold text-lg tracking-wider">{s.code}</span>
+                <p className="text-sm text-ink-muted mt-0.5">
                   {s.status === "active" ? (
-                    <span className="text-green-600 font-medium">Active</span>
+                    <span className="text-success font-medium">Active</span>
                   ) : (
-                    <span className="text-gray-400">Finished</span>
+                    <span className="text-ink-faint">Finished</span>
                   )}
-                  {" · "}
+                  <span className="text-ink-faint"> · </span>
                   {new Date(s.createdAt).toLocaleDateString()}
                 </p>
               </div>
               <div className="flex gap-3 text-sm">
                 {s.status === "active" && (
-                  <Link href={`/admin/sessions/${s.id}/present`} className="text-black font-medium hover:underline">
+                  <Link
+                    href={`/admin/sessions/${s.id}/present`}
+                    className="text-ink font-medium hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-1"
+                  >
                     Present
                   </Link>
                 )}
-                <Link href={`/admin/sessions/${s.id}/results`} className="text-gray-600 hover:text-black">
+                <Link
+                  href={`/admin/sessions/${s.id}/results`}
+                  className="text-ink-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-1"
+                >
                   Results
                 </Link>
               </div>

@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { buttonClass, Input } from "@/components/ui";
 
 export default function NewQuizPage() {
   const router = useRouter();
@@ -23,7 +25,7 @@ export default function NewQuizPage() {
     });
 
     if (res.ok) {
-      const quiz = await res.json() as { id: string };
+      const quiz = (await res.json()) as { id: string };
       router.push(`/admin/quizzes/${quiz.id}/edit`);
     } else {
       setError("Failed to create quiz.");
@@ -33,42 +35,56 @@ export default function NewQuizPage() {
 
   return (
     <div className="max-w-lg mx-auto">
-      <h1 className="text-3xl font-bold mb-8">New Quiz</h1>
+      <h1 className="text-3xl font-bold tracking-tight mb-2">New quiz</h1>
+      <p className="text-sm text-ink-muted mb-8">
+        Give it a title — you can add questions next.
+      </p>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-          <input
-            type="text"
+          <label htmlFor="quiz-title" className="block text-sm font-medium text-ink mb-2">
+            Title <span className="text-ink-faint">*</span>
+          </label>
+          <Input
+            id="quiz-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
             placeholder="e.g. Safety Training Quiz"
             required
             autoFocus
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label htmlFor="quiz-description" className="block text-sm font-medium text-ink mb-2">
+            Description
+          </label>
           <textarea
+            id="quiz-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full px-3 py-2 text-sm rounded-md border border-line bg-surface placeholder:text-ink-faint focus-visible:outline-none focus-visible:border-ink focus-visible:ring-2 focus-visible:ring-ink/10"
             rows={3}
             placeholder="Optional description"
           />
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex gap-3">
+        {error && (
+          <p className="text-sm text-danger" aria-live="polite">
+            {error}
+          </p>
+        )}
+        <div className="flex items-center gap-3">
           <button
             type="submit"
             disabled={loading || !title.trim()}
-            className="px-5 py-2 bg-black text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50"
+            className={buttonClass("primary", "md")}
           >
-            {loading ? "Creating…" : "Create & Edit"}
+            {loading ? "Creating…" : "Create & edit"}
           </button>
-          <a href="/admin/quizzes" className="px-5 py-2 text-sm text-gray-600 hover:text-black">
+          <Link
+            href="/admin/quizzes"
+            className="text-sm text-ink-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-2 py-1"
+          >
             Cancel
-          </a>
+          </Link>
         </div>
       </form>
     </div>
