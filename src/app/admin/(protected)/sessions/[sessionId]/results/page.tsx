@@ -11,6 +11,7 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import ResponseChart from "@/components/charts/ResponseChart";
+import { buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,6 @@ export default async function ResultsPage({ params }: Params) {
       ? db.select().from(responses).where(eq(responses.sessionId, sessionId)).all()
       : [];
 
-  // Compute scoreboard
   const scoreMap = new Map<string, { score: number; correctCount: number }>();
   for (const p of sessionParticipants) {
     scoreMap.set(p.id, { score: 0, correctCount: 0 });
@@ -78,52 +78,75 @@ export default async function ResultsPage({ params }: Params) {
 
   return (
     <div className="max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <Link href={`/admin/quizzes/${session.quizId}/sessions`} className="text-sm text-gray-500 hover:text-black">
+      <div className="flex items-start justify-between mb-8 gap-4">
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/admin/quizzes/${session.quizId}/sessions`}
+            className="text-sm text-ink-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-1"
+          >
             ← Sessions
           </Link>
-          <h1 className="text-3xl font-bold mt-2">{quiz?.title ?? "Session Results"}</h1>
-          <p className="text-gray-500 mt-1">
-            Code: <span className="font-mono font-bold">{session.code}</span>
-            {" · "}
-            {sessionParticipants.length} participant{sessionParticipants.length !== 1 ? "s" : ""}
-            {" · "}
-            {session.status === "finished" ? "Finished" : "Active"}
+          <h1 className="text-3xl font-bold tracking-tight mt-2">
+            {quiz?.title ?? "Session results"}
+          </h1>
+          <p className="text-ink-muted mt-1 text-sm">
+            <span>
+              Code{" "}
+              <span className="font-mono font-bold text-ink">{session.code}</span>
+            </span>
+            <span className="text-ink-faint"> · </span>
+            <span>
+              {sessionParticipants.length} participant
+              {sessionParticipants.length !== 1 ? "s" : ""}
+            </span>
+            <span className="text-ink-faint"> · </span>
+            <span className="capitalize">{session.status}</span>
           </p>
         </div>
         <a
           href={`/api/sessions/${sessionId}/export`}
-          className="px-4 py-2 border border-gray-200 text-sm font-medium rounded-lg hover:bg-gray-50"
+          className={buttonClass("primary", "md")}
         >
+          <svg
+            viewBox="0 0 16 16"
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M8 2v8" />
+            <polyline points="5,7 8,10 11,7" />
+            <path d="M3 12v2h10v-2" />
+          </svg>
           Export CSV
         </a>
       </div>
 
-      {/* Scoreboard */}
       <section className="mb-10">
-        <h2 className="text-xl font-bold mb-4">Scoreboard</h2>
+        <h2 className="text-xl font-bold mb-4 tracking-tight">Scoreboard</h2>
         {scoreboard.length === 0 ? (
-          <p className="text-gray-400">No participants.</p>
+          <p className="text-ink-faint">No participants.</p>
         ) : (
-          <div className="border border-gray-100 rounded-lg overflow-hidden">
+          <div className="border border-line rounded-xl overflow-hidden bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-surface-muted border-b border-line">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500 w-10">#</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Name</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">Score</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">Correct</th>
+                  <th className="px-4 py-3 text-left font-medium text-ink-muted w-10">#</th>
+                  <th className="px-4 py-3 text-left font-medium text-ink-muted">Name</th>
+                  <th className="px-4 py-3 text-right font-medium text-ink-muted">Score</th>
+                  <th className="px-4 py-3 text-right font-medium text-ink-muted">Correct</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-line">
                 {scoreboard.map((p, i) => (
-                  <tr key={p.participantId} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-400 font-mono">{i + 1}</td>
+                  <tr key={p.participantId} className="hover:bg-surface-muted transition-colors">
+                    <td className="px-4 py-3 text-ink-faint font-mono tabular-nums">{i + 1}</td>
                     <td className="px-4 py-3 font-medium">{p.displayName}</td>
-                    <td className="px-4 py-3 text-right font-bold">{p.score}</td>
-                    <td className="px-4 py-3 text-right text-gray-500">
+                    <td className="px-4 py-3 text-right font-bold tabular-nums">{p.score}</td>
+                    <td className="px-4 py-3 text-right text-ink-muted tabular-nums">
                       {p.correctCount}/{quizQuestions.length}
                     </td>
                   </tr>
@@ -134,9 +157,8 @@ export default async function ResultsPage({ params }: Params) {
         )}
       </section>
 
-      {/* Per-question breakdown */}
       <section>
-        <h2 className="text-xl font-bold mb-6">Question Breakdown</h2>
+        <h2 className="text-xl font-bold mb-6 tracking-tight">Question breakdown</h2>
         <div className="space-y-8">
           {quizQuestions.map((q, qi) => {
             const questionChoices = allChoices.filter((c) => c.questionId === q.id);
@@ -157,18 +179,20 @@ export default async function ResultsPage({ params }: Params) {
             const correctResponses = questionResponses.filter((r) => r.isCorrect === 1).length;
 
             return (
-              <div key={q.id} className="border border-gray-100 rounded-lg p-5">
-                <div className="flex items-start justify-between mb-1">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider">Q{qi + 1} · {q.type}</p>
-                  <p className="text-xs text-gray-400">
+              <div key={q.id} className="border border-line rounded-xl p-5 bg-surface">
+                <div className="flex items-start justify-between mb-1 gap-4">
+                  <p className="text-xs text-ink-faint uppercase tracking-wider font-mono">
+                    Q{qi + 1} · {q.type}
+                  </p>
+                  <p className="text-xs text-ink-muted tabular-nums">
                     {correctResponses}/{totalResponses} correct
                   </p>
                 </div>
-                <h3 className="font-semibold text-lg mb-4">{q.title}</h3>
+                <h3 className="font-semibold text-lg mb-4 tracking-tight">{q.title}</h3>
                 {totalResponses > 0 ? (
                   <ResponseChart data={chartData} totalResponses={totalResponses} />
                 ) : (
-                  <p className="text-gray-400 text-sm">No responses</p>
+                  <p className="text-ink-faint text-sm">No responses</p>
                 )}
               </div>
             );

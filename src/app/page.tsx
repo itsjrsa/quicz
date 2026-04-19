@@ -1,28 +1,49 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/ui";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4 bg-white">
-      <div className="text-center max-w-md">
-        <h1 className="text-5xl font-bold tracking-tight mb-4">Quicz</h1>
-        <p className="text-gray-500 text-lg mb-10">
-          Live quizzes for training sessions and workshops.
-        </p>
-        <div className="flex flex-col gap-3">
-          <Link
-            href="/join"
-            className="w-full py-4 bg-black text-white font-semibold text-lg rounded-xl hover:bg-gray-800"
-          >
-            Join a Quiz
-          </Link>
-          <Link
-            href="/admin"
-            className="w-full py-4 border border-gray-200 text-gray-600 font-medium rounded-xl hover:bg-gray-50"
-          >
-            Admin
-          </Link>
+    <main className="relative min-h-screen flex flex-col bg-surface">
+      <div
+        aria-hidden
+        className="quicz-grid-bg absolute inset-0 opacity-70 pointer-events-none [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_75%)]"
+      />
+
+      <header className="relative z-10 flex justify-end px-6 pt-6">
+        <Link
+          href="/admin"
+          className="text-sm text-ink-muted hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-2 py-1"
+        >
+          Admin
+        </Link>
+      </header>
+
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-24">
+        <div className="text-center max-w-md w-full quicz-fade-in">
+          <h1 className="text-7xl font-bold tracking-tight leading-none">
+            Quicz
+          </h1>
+          <p className="mt-4 text-xs font-mono uppercase tracking-[0.35em] text-ink-subtle">
+            Quick <span className="text-ink-faint">·</span> Quiz
+          </p>
+          <div className="mt-10">
+            <Link
+              href="/join"
+              className={buttonClass("primary", "lg", "w-full")}
+            >
+              Join a Quiz
+            </Link>
+          </div>
+
+          <p className="mt-6 text-xs text-ink-faint">
+            Have a session code? Enter it above after tapping Join.
+          </p>
         </div>
       </div>
+
+      <footer className="relative z-10 px-6 pb-6 text-center text-xs text-ink-faint">
+        Quicz · One quiz, one room, one code.
+      </footer>
     </main>
   );
 }

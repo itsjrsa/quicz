@@ -9,6 +9,7 @@ import type {
   ScoreboardPayload,
   ResponseCountPayload,
 } from "@/lib/socket/events";
+import { buttonClass } from "@/components/ui";
 
 interface Props {
   sessionCode: string;
@@ -29,7 +30,6 @@ export default function PlayView({ sessionCode }: Props) {
   const [now, setNow] = useState(() => Date.now());
   const [rejected, setRejected] = useState(false);
 
-  // Resolve session and get participantId from localStorage
   useEffect(() => {
     fetch(`/api/sessions/by-code/${sessionCode}`)
       .then((r) => r.json())
@@ -42,7 +42,6 @@ export default function PlayView({ sessionCode }: Props) {
     if (stored) setParticipantId(stored);
   }, [sessionCode]);
 
-  // Join session when socket is ready
   useEffect(() => {
     if (!socket || !connected) return;
 
@@ -62,16 +61,13 @@ export default function PlayView({ sessionCode }: Props) {
 
     const handleState = (payload: SessionStatePayload) => {
       setState(payload);
-      // Restore submission from server state
       if (payload.mySubmission) {
         setSelectedChoices(payload.mySubmission);
         setSubmitted(true);
       } else {
-        // Reset on new question
         setSelectedChoices([]);
         setSubmitted(false);
       }
-      // Clear results/correct on new question
       if (payload.phase === "question_open") {
         setResults(null);
         setCorrect(null);
@@ -113,7 +109,6 @@ export default function PlayView({ sessionCode }: Props) {
     };
   }, [socket, connected, sessionCode]);
 
-  // Countdown tick for timed questions
   useEffect(() => {
     if (!state || state.timeLimit == null || state.questionOpenedAt == null) return;
     if (state.phase !== "question_open") return;
@@ -142,12 +137,10 @@ export default function PlayView({ sessionCode }: Props) {
     setSubmitted(true);
   }
 
-  // ── Render states ─────────────────────────────────────────────────────────
-
   if (!connected) {
     return (
       <Screen>
-        <p className="text-gray-400 text-lg">Connecting…</p>
+        <p className="text-ink-faint text-lg">Connecting…</p>
       </Screen>
     );
   }
@@ -156,7 +149,7 @@ export default function PlayView({ sessionCode }: Props) {
     return (
       <Screen>
         <p className="text-3xl font-bold mb-2">Thanks for playing!</p>
-        <p className="text-gray-500">The session has ended.</p>
+        <p className="text-ink-muted">The session has ended.</p>
       </Screen>
     );
   }
@@ -164,67 +157,105 @@ export default function PlayView({ sessionCode }: Props) {
   if (!state) {
     return (
       <Screen>
-        <p className="text-gray-400">Waiting for session…</p>
+        <p className="text-ink-faint">Waiting for session…</p>
       </Screen>
     );
   }
 
   if (state.phase === "lobby") {
+    const displayName = typeof window !== "undefined"
+      ? localStorage.getItem(`name:${sessionCode}`)
+      : null;
     return (
       <Screen>
-        <p className="text-4xl font-bold mb-4">You&apos;re in!</p>
-        <p className="text-gray-500 text-lg">Waiting for the quiz to start…</p>
-        <div className="mt-8 flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="w-2 h-2 bg-gray-300 rounded-full animate-bounce"
-              style={{ animationDelay: `${i * 150}ms` }}
-            />
-          ))}
+        <div className="quicz-fade-in flex flex-col items-center">
+          <p className="text-4xl font-bold mb-3">You&apos;re in!</p>
+          {displayName && (
+            <p className="text-sm font-mono uppercase tracking-widest text-ink-faint mb-5">
+              {displayName}
+            </p>
+          )}
+          <p className="text-ink-muted text-lg">Waiting for the quiz to start…</p>
+          <div className="mt-8 flex gap-1.5" aria-hidden>
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-2 h-2 bg-line-strong rounded-full animate-bounce"
+                style={{ animationDelay: `${i * 150}ms` }}
+              />
+            ))}
+          </div>
         </div>
       </Screen>
     );
   }
 
   if (state.phase === "final" || scoreboard) {
+    const myRanking = scoreboard?.rankings.find((r) => r.participantId === participantId);
+    const showMeBelowCut =
+      scoreboard && myRanking && myRanking.rank > 10;
     return (
       <Screen>
-        <p className="text-3xl font-bold mb-6">Final Scores</p>
-        {scoreboard ? (
-          <ul className="w-full max-w-xs space-y-3">
-            {scoreboard.rankings.slice(0, 10).map((r) => {
-              const isMe = r.participantId === participantId;
-              return (
-                <li
-                  key={r.participantId}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
-                    isMe ? "bg-black text-white" : "bg-gray-50"
-                  }`}
-                >
-                  <span className={`text-sm font-mono w-5 ${isMe ? "text-gray-300" : "text-gray-400"}`}>
-                    {r.rank}
-                  </span>
-                  <span className="flex-1 text-sm font-medium truncate">{r.displayName}</span>
-                  <span className="font-bold text-sm">{r.score} pts</span>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="text-gray-400">Calculating scores…</p>
-        )}
+        <div className="quicz-fade-in w-full max-w-xs">
+          <p className="text-3xl font-bold mb-1 text-center">Final standings</p>
+          <p className="text-sm text-ink-muted text-center mb-6">
+            Thanks for playing.
+          </p>
+          {scoreboard ? (
+            <>
+              <ul className="space-y-2">
+                {scoreboard.rankings.slice(0, 10).map((r) => {
+                  const isMe = r.participantId === participantId;
+                  return (
+                    <li
+                      key={r.participantId}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                        isMe
+                          ? "bg-ink-strong text-surface"
+                          : "bg-surface-muted text-ink"
+                      }`}
+                    >
+                      <span
+                        className={`text-sm font-mono w-6 ${
+                          isMe ? "text-line-strong" : "text-ink-faint"
+                        }`}
+                      >
+                        {r.rank}
+                      </span>
+                      <span className="flex-1 text-sm font-medium truncate">{r.displayName}</span>
+                      <span className="font-bold text-sm tabular-nums">{r.score} pts</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              {showMeBelowCut && myRanking && (
+                <>
+                  <p className="text-center text-xs text-ink-faint mt-3 mb-2">· · ·</p>
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-ink-strong text-surface">
+                    <span className="text-sm font-mono w-6 text-line-strong">
+                      {myRanking.rank}
+                    </span>
+                    <span className="flex-1 text-sm font-medium truncate">
+                      {myRanking.displayName}
+                    </span>
+                    <span className="font-bold text-sm tabular-nums">{myRanking.score} pts</span>
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <p className="text-ink-faint text-center">Calculating scores…</p>
+          )}
+        </div>
       </Screen>
     );
   }
 
-  // Question phases
   const question = state.question;
-  if (!question) return <Screen><p className="text-gray-400">Loading question…</p></Screen>;
+  if (!question) return <Screen><p className="text-ink-faint">Loading question…</p></Screen>;
 
   const isLocked = state.phase === "question_locked" || state.phase === "results";
 
-  // Suppress unused variable warning — sessionId is resolved for potential future use
   void sessionId;
 
   const total = state.totalQuestions || 0;
@@ -242,33 +273,35 @@ export default function PlayView({ sessionCode }: Props) {
     remainingSeconds === 0 && state.phase === "question_open";
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      {/* Progress bar */}
-      <div className="h-1 bg-gray-100">
+    <div className="min-h-screen flex flex-col bg-surface">
+      <div className="h-1 bg-surface-muted">
         <div
-          className="h-1 bg-black transition-all duration-500"
+          className="h-1 bg-ink-strong transition-all duration-500"
           style={{ width: `${progressPct}%` }}
         />
       </div>
 
-      <div className="flex-1 flex flex-col px-4 py-8 max-w-lg mx-auto w-full">
-        {/* Question */}
+      <div
+        key={`${question.id}-${state.phase}`}
+        className="flex-1 flex flex-col px-4 py-8 max-w-lg mx-auto w-full quicz-fade-in"
+      >
         <div className="mb-8">
-          <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">
+          <p className="text-xs text-ink-faint uppercase tracking-wider mb-2 font-mono">
             {total > 0 && (
               <>
-                Question {current} of {total}
-                {" · "}
+                Q{current} / {total}
+                <span className="text-ink-faint/60"> · </span>
               </>
             )}
             {question.type === "multi" ? "Select all that apply" : "Choose one"}
-            {" · "}{question.points} pt{question.points !== 1 ? "s" : ""}
+            <span className="text-ink-faint/60"> · </span>
+            {question.points} pt{question.points !== 1 ? "s" : ""}
           </p>
-          <h2 className="text-2xl font-bold leading-snug">{question.title}</h2>
+          <h2 className="text-2xl font-bold leading-snug tracking-tight">{question.title}</h2>
           {remainingSeconds != null && state.phase === "question_open" && (
             <p
-              className={`mt-2 text-sm font-medium tabular-nums ${
-                remainingSeconds <= 5 ? "text-red-600" : "text-gray-500"
+              className={`mt-3 text-sm font-medium tabular-nums ${
+                remainingSeconds <= 5 ? "text-danger" : "text-ink-muted"
               }`}
               aria-live="polite"
             >
@@ -277,48 +310,52 @@ export default function PlayView({ sessionCode }: Props) {
           )}
         </div>
 
-        {/* Personal result banner — shown above choices when revealed */}
         {state.phase === "results" && state.correctRevealed && correct?.participantResult && (
           <div
-            className={`mb-6 flex items-center gap-3 p-4 rounded-xl border-2 ${
-              correct.participantResult.isCorrect
-                ? "bg-green-50 border-green-400"
-                : "bg-red-50 border-red-400"
-            }`}
+            className={`mb-6 flex items-stretch rounded-xl overflow-hidden border border-line quicz-fade-in`}
           >
             <div
-              className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                correct.participantResult.isCorrect ? "bg-green-500" : "bg-red-500"
+              className={`w-1.5 ${
+                correct.participantResult.isCorrect ? "bg-success" : "bg-danger"
               }`}
-            >
-              {correct.participantResult.isCorrect ? (
-                <svg viewBox="0 0 20 20" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="4,10.5 8.5,15 16,6" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 20 20" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="5" x2="15" y2="15" />
-                  <line x1="15" y1="5" x2="5" y2="15" />
-                </svg>
-              )}
-            </div>
-            <div className="flex-1">
-              {correct.participantResult.isCorrect ? (
-                <>
-                  <p className="font-bold text-lg text-green-800 leading-tight">Correct!</p>
-                  <p className="text-sm text-green-700">+{correct.participantResult.pointsEarned} points</p>
-                </>
-              ) : (
-                <>
-                  <p className="font-bold text-lg text-red-800 leading-tight">Incorrect</p>
-                  <p className="text-sm text-red-700">No points this round</p>
-                </>
-              )}
+              aria-hidden
+            />
+            <div className="flex-1 flex items-center gap-3 p-4 bg-surface-muted">
+              <div
+                className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
+                  correct.participantResult.isCorrect
+                    ? "bg-success-soft text-success"
+                    : "bg-danger-soft text-danger"
+                }`}
+              >
+                {correct.participantResult.isCorrect ? (
+                  <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="4,10.5 8.5,15 16,6" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="5" x2="15" y2="15" />
+                    <line x1="15" y1="5" x2="5" y2="15" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex-1">
+                {correct.participantResult.isCorrect ? (
+                  <>
+                    <p className="font-semibold text-ink leading-tight">Correct</p>
+                    <p className="text-sm text-ink-muted">+{correct.participantResult.pointsEarned} points</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-ink leading-tight">See the correct answer</p>
+                    <p className="text-sm text-ink-muted">No points this round — onwards.</p>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Choices */}
         <div className="space-y-3 flex-1">
           {(() => {
             const showBars = state.phase === "results" && state.answersVisible && results;
@@ -334,27 +371,26 @@ export default function PlayView({ sessionCode }: Props) {
               const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
 
               if (showBars) {
-                // Bar-chart style card
-                let borderColor = "border-gray-200";
-                let barColor = "bg-gray-200";
-                let textColor = "text-gray-800";
+                let borderColor = "border-line";
+                let barColor = "bg-line-strong";
+                let textColor = "text-ink";
 
                 if (state.correctRevealed) {
                   if (isCorrectChoice) {
-                    borderColor = "border-green-500";
-                    barColor = "bg-green-400";
-                    textColor = "text-green-800";
+                    borderColor = "border-success";
+                    barColor = "bg-success";
+                    textColor = "text-ink";
                   } else if (isSelected) {
-                    borderColor = "border-red-500";
-                    barColor = "bg-red-300";
-                    textColor = "text-red-800";
+                    borderColor = "border-danger/60";
+                    barColor = "bg-danger";
+                    textColor = "text-ink";
                   } else {
-                    borderColor = "border-gray-100";
-                    textColor = "text-gray-400";
+                    borderColor = "border-line";
+                    textColor = "text-ink-faint";
                   }
                 } else if (isSelected) {
-                  borderColor = "border-black";
-                  barColor = "bg-gray-800";
+                  borderColor = "border-ink-strong";
+                  barColor = "bg-ink";
                 }
 
                 return (
@@ -362,19 +398,17 @@ export default function PlayView({ sessionCode }: Props) {
                     key={choice.id}
                     className={`relative w-full rounded-xl border-2 overflow-hidden ${borderColor}`}
                   >
-                    {/* Bar fill */}
                     <div
-                      className={`absolute inset-y-0 left-0 ${barColor} opacity-25 transition-all duration-500`}
+                      className={`absolute inset-y-0 left-0 ${barColor} opacity-20 transition-all duration-500`}
                       style={{ width: `${pct}%` }}
                     />
-                    {/* Content */}
                     <div className={`relative flex items-center justify-between px-5 py-4 font-medium ${textColor}`}>
                       <span className="flex items-center gap-2">
                         {state.correctRevealed && isCorrectChoice && (
-                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-success font-bold" aria-label="Correct answer">✓</span>
                         )}
                         {state.correctRevealed && isSelected && !isCorrectChoice && (
-                          <span className="text-red-500 font-bold">✗</span>
+                          <span className="text-danger font-bold" aria-label="Your answer">✗</span>
                         )}
                         {choice.text}
                       </span>
@@ -386,12 +420,15 @@ export default function PlayView({ sessionCode }: Props) {
                 );
               }
 
-              // Normal clickable button (voting phase)
-              let choiceClass = "w-full px-5 py-4 rounded-xl border-2 text-left font-medium transition-colors ";
+              let choiceClass =
+                "w-full px-5 py-4 rounded-xl border-2 text-left font-medium transition-all duration-150 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 ";
               if (isSelected) {
-                choiceClass += "border-black bg-black text-white";
+                choiceClass += "border-ink-strong bg-ink-strong text-surface";
+              } else if (isLocked || submitted) {
+                choiceClass += "border-line text-ink-muted";
               } else {
-                choiceClass += "border-gray-200 hover:border-gray-400";
+                choiceClass += "border-line hover:border-ink-strong";
               }
 
               return (
@@ -408,12 +445,11 @@ export default function PlayView({ sessionCode }: Props) {
           })()}
         </div>
 
-        {/* Submit button */}
         {state.phase === "question_open" && (
           <div className="mt-6">
             {submitted ? (
-              <div className="text-center py-4 text-gray-500">
-                <p className="font-medium">Answer submitted ✓</p>
+              <div className="text-center py-4 text-ink-muted">
+                <p className="font-medium text-ink">Answer submitted ✓</p>
                 {responseCount && responseCount.total > 0 ? (
                   <p className="text-sm mt-1">
                     {responseCount.count} of {responseCount.total} answered
@@ -427,12 +463,17 @@ export default function PlayView({ sessionCode }: Props) {
                 <button
                   onClick={submitAnswer}
                   disabled={selectedChoices.length === 0 || timeUp}
-                  className="w-full py-4 bg-black text-white font-semibold text-lg rounded-xl hover:bg-gray-800 disabled:opacity-30"
+                  className={buttonClass("primary", "lg", "w-full")}
                 >
                   {timeUp ? "Time's up" : "Submit Answer"}
                 </button>
+                {selectedChoices.length === 0 && !timeUp && (
+                  <p className="mt-2 text-xs text-center text-ink-faint">
+                    Select an answer to submit
+                  </p>
+                )}
                 {rejected && (
-                  <p className="mt-2 text-xs text-center text-red-600">
+                  <p className="mt-2 text-xs text-center text-danger">
                     Time&apos;s up — your answer was not accepted.
                   </p>
                 )}
@@ -441,18 +482,20 @@ export default function PlayView({ sessionCode }: Props) {
           </div>
         )}
 
-        {/* Locked state */}
         {state.phase === "question_locked" && (
-          <div className="mt-6 text-center text-gray-500">
-            <p className="font-medium">Voting locked</p>
-            <p className="text-sm mt-1">Waiting for results…</p>
+          <div className="mt-6 text-center">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-muted text-ink-muted text-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-ink-muted animate-pulse" aria-hidden />
+              Answer locked · awaiting reveal
+            </span>
           </div>
         )}
 
-        {/* Results state */}
         {state.phase === "results" && !state.correctRevealed && (
-          <div className="mt-6 text-center text-gray-500">
-            <p className="text-sm">Correct answer will be revealed shortly</p>
+          <div className="mt-6 text-center">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-muted text-ink-muted text-sm">
+              Correct answer will be revealed shortly
+            </span>
           </div>
         )}
 
@@ -463,7 +506,7 @@ export default function PlayView({ sessionCode }: Props) {
 
 function Screen({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-white text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-surface text-center">
       {children}
     </div>
   );

@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { buttonClass, Input } from "@/components/ui";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -29,32 +31,52 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-sm p-8 bg-white border border-gray-200 rounded-lg">
-        <h1 className="text-2xl font-bold mb-6">Admin Login</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
-              required
-              autoFocus
-            />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 px-4 bg-black text-white rounded-md hover:bg-gray-800 disabled:opacity-50"
+    <div className="min-h-screen flex items-center justify-center bg-surface-muted px-4">
+      <div className="w-full max-w-sm quicz-fade-in">
+        <div className="text-center mb-8">
+          <Link
+            href="/"
+            className="inline-block text-3xl font-bold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-1"
           >
-            {loading ? "Logging in…" : "Login"}
-          </button>
-        </form>
+            Quicz
+          </Link>
+          <p className="mt-1 text-[10px] font-mono uppercase tracking-[0.35em] text-ink-faint">
+            Admin
+          </p>
+        </div>
+        <div className="p-8 bg-surface border border-line rounded-xl shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label
+                htmlFor="admin-password"
+                className="block text-sm font-medium text-ink mb-2"
+              >
+                Password
+              </label>
+              <Input
+                id="admin-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoFocus
+                invalid={Boolean(error)}
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-danger" aria-live="polite">
+                {error}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={loading || !password}
+              className={buttonClass("primary", "md", "w-full")}
+            >
+              {loading ? "Logging in…" : "Log in"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
