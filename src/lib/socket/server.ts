@@ -25,6 +25,16 @@ import type {
 const GRACE_MS = 1000;
 const autoLockTimers = new Map<string, NodeJS.Timeout>();
 
+// Share io across Next.js bundler module boundaries via globalThis
+const IO_KEY = Symbol.for("quicz.io");
+type IoGlobal = typeof globalThis & { [IO_KEY]?: SocketIOServer };
+export function getIo(): SocketIOServer | null {
+  return (globalThis as IoGlobal)[IO_KEY] ?? null;
+}
+function setIo(io: SocketIOServer) {
+  (globalThis as IoGlobal)[IO_KEY] = io;
+}
+
 function getSession(sessionId: string) {
   return db.select().from(liveSessions).where(eq(liveSessions.id, sessionId)).get() ?? null;
 }
@@ -48,6 +58,14 @@ function getChoices(questionIds: string[]) {
 
 function getParticipantCount(sessionId: string): number {
   return db.select().from(participants).where(eq(participants.sessionId, sessionId)).all().length;
+}
+
+function getParticipantList(sessionId: string): { id: string; displayName: string }[] {
+  return db
+    .select({ id: participants.id, displayName: participants.displayName })
+    .from(participants)
+    .where(eq(participants.sessionId, sessionId))
+    .all();
 }
 
 function getResponseCount(sessionId: string, questionId: string): number {
@@ -144,6 +162,7 @@ function buildAdminState(
     question: question
       ? { id: question.id, title: question.title, type: question.type, points: question.points }
       : null,
+    participantList: session.phase === "lobby" ? getParticipantList(session.id) : undefined,
   };
 }
 
@@ -268,6 +287,7 @@ function scheduleAutoLock(io: SocketIOServer, sessionId: string) {
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
 export function setupSocketHandlers(io: SocketIOServer) {
+  setIo(io);
   io.on("connection", (socket: Socket) => {
     // ── Participant join ────────────────────────────────────────────────────
     socket.on("participant:join", (payload: ParticipantJoinPayload) => {

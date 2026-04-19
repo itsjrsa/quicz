@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { liveSessions, participants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import { getIo } from "@/lib/socket/server";
 
 type Params = { params: Promise<{ sessionId: string }> };
 
@@ -39,6 +40,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   };
 
   db.insert(participants).values(participant).run();
+
+  // Notify admins watching this session
+  const io = getIo();
+  io?.to(`admin:${sessionId}`).emit("admin:participant-joined", {
+    participantId: participant.id,
+    displayName: participant.displayName,
+  });
 
   return NextResponse.json({ participantId: participant.id }, { status: 201 });
 }

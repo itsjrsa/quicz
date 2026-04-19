@@ -16,6 +16,7 @@ export default function PresenterView({ sessionId }: Props) {
   const [scoreboard, setScoreboard] = useState<ScoreboardPayload | null>(null);
   const [copied, setCopied] = useState(false);
   const [joinUrl, setJoinUrl] = useState<string>("");
+  const [lobbyParticipants, setLobbyParticipants] = useState<{ id: string; displayName: string }[]>([]);
 
   useEffect(() => {
     if (!sessionCode) return;
@@ -38,6 +39,9 @@ export default function PresenterView({ sessionId }: Props) {
 
     const onAdminState = (payload: AdminStatePayload) => {
       setState(payload);
+      if (payload.phase === "lobby" && payload.participantList) {
+        setLobbyParticipants(payload.participantList);
+      }
     };
 
     const onResponseCount = (payload: { questionId: string; count: number; total: number }) => {
@@ -46,8 +50,12 @@ export default function PresenterView({ sessionId }: Props) {
       );
     };
 
-    const onParticipantJoined = () => {
-      setState((prev) => (prev ? { ...prev, participantCount: prev.participantCount + 1 } : prev));
+    const onParticipantJoined = (payload: { participantId: string; displayName: string }) => {
+      setLobbyParticipants((prev) => {
+        if (prev.some((p) => p.id === payload.participantId)) return prev;
+        setState((s) => (s ? { ...s, participantCount: s.participantCount + 1 } : s));
+        return [...prev, { id: payload.participantId, displayName: payload.displayName }];
+      });
     };
 
     const onScoreboard = (payload: ScoreboardPayload) => {
@@ -226,6 +234,43 @@ export default function PresenterView({ sessionId }: Props) {
         </div>
       )}
 
+      {/* Currently in lobby — participant chips */}
+      {showJoinPanel && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs uppercase tracking-wider text-gray-400">
+              Currently in lobby
+            </p>
+            <span
+              className="inline-flex items-center gap-1.5 text-xs text-gray-500"
+              aria-live="polite"
+            >
+              <span className="relative inline-flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+              </span>
+              live
+            </span>
+          </div>
+          {lobbyParticipants.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">
+              Waiting for participants to join…
+            </p>
+          ) : (
+            <ul className="flex flex-wrap gap-2">
+              {lobbyParticipants.map((p) => (
+                <li
+                  key={p.id}
+                  className="quicz-pop-in inline-flex px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-800 max-w-full truncate"
+                >
+                  {p.displayName}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* Compact info bar (during quiz) */}
       {!showJoinPanel && (
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
@@ -262,24 +307,26 @@ export default function PresenterView({ sessionId }: Props) {
         </div>
       )}
 
-      {/* Phase indicator */}
-      <div className="mb-6">
-        <span
-          className={`inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
-            phase === "question_open"
-              ? "bg-green-100 text-green-700"
-              : phase === "question_locked"
-                ? "bg-yellow-100 text-yellow-700"
-                : phase === "results"
-                  ? "bg-blue-100 text-blue-700"
-                  : phase === "final"
-                    ? "bg-purple-100 text-purple-700"
-                    : "bg-gray-100 text-gray-600"
-          }`}
-        >
-          {phase.replace(/_/g, " ")}
-        </span>
-      </div>
+      {/* Phase indicator (hidden in lobby — QR panel already conveys it) */}
+      {phase !== "lobby" && (
+        <div className="mb-6">
+          <span
+            className={`inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
+              phase === "question_open"
+                ? "bg-green-100 text-green-700"
+                : phase === "question_locked"
+                  ? "bg-yellow-100 text-yellow-700"
+                  : phase === "results"
+                    ? "bg-blue-100 text-blue-700"
+                    : phase === "final"
+                      ? "bg-purple-100 text-purple-700"
+                      : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {phase.replace(/_/g, " ")}
+          </span>
+        </div>
+      )}
 
       {/* Current question */}
       {state.question && (

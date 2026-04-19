@@ -68,6 +68,7 @@ export interface AdminStatePayload {
     type: string;
     points: number;
   } | null;
+  participantList?: { id: string; displayName: string }[];
 }
 
 // Client -> Server
