@@ -8,7 +8,7 @@ import {
   choices,
   quizzes,
 } from "../../db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { scoreQuestion } from "../scoring";
 import { v4 as uuidv4 } from "uuid";
 import type {
@@ -458,6 +458,16 @@ export function setupSocketHandlers(io: SocketIOServer) {
       const session = getSession(payload.sessionId);
       if (!session || session.phase !== "question_locked") return;
 
+      // Clear scoring so it is recomputed when voting locks again
+      const quizQuestionsForReopen = getQuestions(session.quizId);
+      const reopenQuestion = quizQuestionsForReopen[session.currentQuestionIndex];
+      if (reopenQuestion) {
+        db.update(responses)
+          .set({ isCorrect: null, pointsEarned: null })
+          .where(and(eq(responses.sessionId, session.id), eq(responses.questionId, reopenQuestion.id)))
+          .run();
+      }
+
       db.update(liveSessions)
         .set({ phase: "question_open", questionOpenedAt: Date.now() })
         .where(eq(liveSessions.id, session.id))
@@ -466,6 +476,94 @@ export function setupSocketHandlers(io: SocketIOServer) {
       const updated = getSession(payload.sessionId)!;
       broadcastSessionState(io, updated);
       scheduleAutoLock(io, updated.id);
+    });
+
+    // ── Admin: back ────────────────────────────────────────────────────────
+    socket.on("admin:back", (payload: AdminActionPayload) => {
+      const session = getSession(payload.sessionId);
+      if (!session) return;
+
+      if (session.phase === "results") {
+        db.update(liveSessions)
+          .set({ phase: "question_locked", answersVisible: 0, correctRevealed: 0 })
+          .where(eq(liveSessions.id, session.id))
+          .run();
+        const updated = getSession(payload.sessionId)!;
+        broadcastSessionState(io, updated);
+        return;
+      }
+
+      if (session.phase === "question_open") {
+        clearAutoLock(session.id);
+        const quizQuestions = getQuestions(session.quizId);
+        const currentQuestion = quizQuestions[session.currentQuestionIndex];
+        if (currentQuestion) {
+          db.delete(responses)
+            .where(and(eq(responses.sessionId, session.id), eq(responses.questionId, currentQuestion.id)))
+            .run();
+        }
+
+        if (session.currentQuestionIndex === 0) {
+          db.update(liveSessions)
+            .set({ phase: "lobby", currentQuestionIndex: 0, answersVisible: 0, correctRevealed: 0, questionOpenedAt: null })
+            .where(eq(liveSessions.id, session.id))
+            .run();
+          const updated = getSession(payload.sessionId)!;
+          broadcastSessionState(io, updated);
+        } else {
+          const prevIndex = session.currentQuestionIndex - 1;
+          db.update(liveSessions)
+            .set({ phase: "results", currentQuestionIndex: prevIndex, answersVisible: 1, correctRevealed: 1, questionOpenedAt: null })
+            .where(eq(liveSessions.id, session.id))
+            .run();
+          const updated = getSession(payload.sessionId)!;
+          broadcastSessionState(io, updated);
+
+          const prevQuestion = quizQuestions[prevIndex];
+          if (prevQuestion) {
+            const prevChoices = getChoices([prevQuestion.id]);
+            const prevResponses = db
+              .select()
+              .from(responses)
+              .where(eq(responses.questionId, prevQuestion.id))
+              .all()
+              .filter((r) => r.sessionId === session.id);
+
+            const distribution = prevChoices.map((c) => ({
+              choiceId: c.id,
+              count: prevResponses.filter((r) => {
+                try { return (JSON.parse(r.choiceIds) as string[]).includes(c.id); }
+                catch { return false; }
+              }).length,
+            }));
+            io.to(`session:${updated.code}`).emit("session:results", { questionId: prevQuestion.id, distribution });
+
+            const correctChoiceIds = prevChoices.filter((c) => c.isCorrect === 1).map((c) => c.id);
+            const room = io.sockets.adapter.rooms.get(`session:${updated.code}`);
+            if (room) {
+              for (const socketId of Array.from(room)) {
+                const targetSocket = io.sockets.sockets.get(socketId);
+                if (!targetSocket) continue;
+                const pId = targetSocket.data.participantId as string | undefined;
+                let participantResult: { isCorrect: boolean; pointsEarned: number } | null = null;
+                if (pId) {
+                  const r = db
+                    .select()
+                    .from(responses)
+                    .where(eq(responses.participantId, pId))
+                    .all()
+                    .find((resp) => resp.questionId === prevQuestion.id && resp.sessionId === session.id);
+                  if (r && r.isCorrect !== null) {
+                    participantResult = { isCorrect: r.isCorrect === 1, pointsEarned: r.pointsEarned ?? 0 };
+                  }
+                }
+                targetSocket.emit("session:correct", { questionId: prevQuestion.id, correctChoiceIds, participantResult });
+              }
+            }
+          }
+        }
+        return;
+      }
     });
 
     // ── Admin: lock-voting ──────────────────────────────────────────────────

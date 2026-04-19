@@ -1,0 +1,47 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+npm run dev          # tsx watch server.ts — runs custom server (NOT `next dev`)
+npm run build        # next build + tsc -p tsconfig.server.json (emits dist/server.js)
+npm run start        # node dist/server.js — production entry
+npm run db:generate  # drizzle-kit generate (after schema.ts changes)
+npm run db:migrate   # manual migrate via src/db/migrate.ts
+npm run db:studio    # drizzle-kit studio
+```
+
+There is no test runner, linter, or formatter configured. Type-checking runs as part of `next build`.
+
+Migrations run automatically at server boot (`server.ts` calls `migrate(...)` before `app.prepare()`), so `db:migrate` is rarely needed manually.
+
+Required env vars (see `.env.example`): `ADMIN_PASSWORD`, `SESSION_SECRET`. Optional: `DATABASE_URL` (default `./data/quicz.db`), `PORT` (default `3000`).
+
+## Architecture
+
+**One process, one port.** `server.ts` is a custom Node HTTP server that (1) runs Drizzle migrations, (2) hands HTTP to Next.js via `app.getRequestHandler()`, and (3) attaches a Socket.IO server to the same HTTP listener. This is why `next dev`/`next start` are not used — WebSockets must share the HTTP server. Two TS configs exist for this split: `tsconfig.json` (Next build, excludes `server.ts`) and `tsconfig.server.json` (emits `dist/server.js`).
+
+**Source of truth is SQLite.** All session state (phase, current question, flags) lives in the `live_sessions` row. Socket.IO is a broadcast mechanism, not a state store. Every admin action writes to the DB first, then `broadcastSessionState()` fans out `session:state` to participants and `admin:state` to admins. Participant reconnects rebuild full state from the DB using the `participantId` held in localStorage.
+
+**In-memory exception:** `autoLockTimers` (`src/lib/socket/server.ts`) is a `Map<sessionId, Timeout>` for time-limited questions. This is the one piece of state that does not survive restart — timers are lost and questions must be manually locked by the admin after a restart.
+
+**Rooms.** Participants join room `session:{CODE}`; admins join `admin:{sessionId}`. These are disjoint so personalized vs. aggregated payloads can be targeted.
+
+**Scoring is server-side.** When `admin:lock-voting` fires, `scoreQuestion()` computes `isCorrect`/`pointsEarned` for every response row. Multi-choice requires exact set match. Individual correctness is gated behind the `correctRevealed` flag and delivered via `session:correct` per-participant (not broadcast).
+
+**Session phase machine:** `lobby → question_open → question_locked → results → (next) question_open → ... → final`. See `DESIGN.md` for the full transition table. `results` is a sub-state — `answersVisible` and `correctRevealed` are flags within it, set by separate admin events.
+
+## Layout conventions
+
+- Admin auth: single `ADMIN_PASSWORD` env var. `POST /api/auth` sets an HMAC-signed cookie (`quicz_admin`) signed with `SESSION_SECRET`. No user table. Server Components use `isAdminAuthenticated()` (reads `cookies()`); API route handlers use `isAdminAuthenticatedFromRequest(req)`.
+- Admin routes live under `src/app/admin/(protected)/` — the route group's `layout.tsx` enforces auth. Public admin pages (`login`, dashboard redirect) live directly under `src/app/admin/`.
+- Shared realtime types are in `src/lib/socket/events.ts` and imported by both `server.ts` socket handlers and the React client hook in `src/lib/socket/client.ts`. Keep payload shapes in sync across both sides when editing.
+- DB access uses Drizzle with `better-sqlite3` (synchronous). `journal_mode=WAL` and `foreign_keys=ON` are set in `src/db/index.ts`.
+- Path alias: `@/*` → `src/*` (configured in both tsconfigs).
+
+## Docs
+
+- `DESIGN.md` — authoritative spec for data model, routes, socket events, phase transitions. Consult before changing socket payloads or DB schema.
+- `README.md` — user-facing install/usage.

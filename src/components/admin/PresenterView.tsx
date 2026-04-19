@@ -81,6 +81,14 @@ export default function PresenterView({ sessionId }: Props) {
     socket?.emit(event, { sessionId });
   }
 
+  function backEvent(s: AdminStatePayload | null): string | null {
+    if (!s) return null;
+    if (s.phase === "question_open") return "admin:back";
+    if (s.phase === "question_locked") return "admin:open-voting";
+    if (s.phase === "results") return "admin:back";
+    return null;
+  }
+
   // Primary action derived from the current phase — used by the keyboard shortcut
   function primaryEvent(s: AdminStatePayload | null): string | null {
     if (!s) return null;
@@ -110,6 +118,12 @@ export default function PresenterView({ sessionId }: Props) {
 
       if (e.key === " " || e.key === "Enter" || e.key === "ArrowRight") {
         const evt = primaryEvent(current);
+        if (evt) {
+          e.preventDefault();
+          socket?.emit(evt, { sessionId });
+        }
+      } else if (e.key === "ArrowLeft") {
+        const evt = backEvent(current);
         if (evt) {
           e.preventDefault();
           socket?.emit(evt, { sessionId });
@@ -328,22 +342,38 @@ export default function PresenterView({ sessionId }: Props) {
 
         {/* Question open controls */}
         {phase === "question_open" && (
-          <button
-            onClick={() => emit("admin:lock-voting")}
-            className="col-span-2 py-3 bg-black text-white font-semibold rounded-lg hover:bg-gray-800"
-          >
-            Lock Voting
-          </button>
+          <>
+            <button
+              onClick={() => emit("admin:back")}
+              className="py-3 border border-gray-300 text-gray-600 font-semibold rounded-lg hover:bg-gray-50"
+            >
+              ← Back
+            </button>
+            <button
+              onClick={() => emit("admin:lock-voting")}
+              className="py-3 bg-black text-white font-semibold rounded-lg hover:bg-gray-800"
+            >
+              Lock Voting
+            </button>
+          </>
         )}
 
         {/* Question locked controls */}
         {phase === "question_locked" && (
-          <button
-            onClick={() => emit("admin:show-results")}
-            className="col-span-2 py-3 bg-black text-white font-semibold rounded-lg hover:bg-gray-800"
-          >
-            Show Results
-          </button>
+          <>
+            <button
+              onClick={() => emit("admin:open-voting")}
+              className="py-3 border border-gray-300 text-gray-600 font-semibold rounded-lg hover:bg-gray-50"
+            >
+              Re-open Voting
+            </button>
+            <button
+              onClick={() => emit("admin:show-results")}
+              className="py-3 bg-black text-white font-semibold rounded-lg hover:bg-gray-800"
+            >
+              Show Results
+            </button>
+          </>
         )}
 
         {/* Results controls */}
@@ -352,6 +382,12 @@ export default function PresenterView({ sessionId }: Props) {
             state.totalQuestions > 0 && state.currentQuestionIndex >= state.totalQuestions - 1;
           return (
             <>
+              <button
+                onClick={() => emit("admin:back")}
+                className="col-span-2 py-3 border border-gray-300 text-gray-600 font-semibold rounded-lg hover:bg-gray-50"
+              >
+                ← Back
+              </button>
               {!state.correctRevealed && (
                 <button
                   onClick={() => emit("admin:show-correct")}
@@ -409,11 +445,18 @@ export default function PresenterView({ sessionId }: Props) {
           Participants join at <span className="font-mono">/join</span> with code{" "}
           <span className="font-mono font-bold text-black">{sessionCode}</span>
         </span>
-        {primaryEvent(state) && (
-          <span className="shrink-0">
-            Press <kbd className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono">Space</kbd> to advance
-          </span>
-        )}
+        <span className="shrink-0 flex items-center gap-2">
+          {backEvent(state) && (
+            <span>
+              <kbd className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono">←</kbd> back
+            </span>
+          )}
+          {primaryEvent(state) && (
+            <span>
+              <kbd className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono">Space</kbd> advance
+            </span>
+          )}
+        </span>
       </div>
     </div>
   );

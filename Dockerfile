@@ -9,6 +9,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN npm rebuild better-sqlite3
 RUN npm run build
 
 # Stage 3: runner
