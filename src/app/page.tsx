@@ -26,10 +26,6 @@ export default function HomePage() {
           <p className="mt-4 text-xs font-mono uppercase tracking-[0.35em] text-ink-subtle">
             Quick <span className="text-ink-faint">·</span> Quiz
           </p>
-          <p className="mt-8 text-ink-muted text-lg leading-relaxed">
-            Live quizzes for training sessions and workshops.
-          </p>
-
           <div className="mt-10">
             <Link
               href="/join"
