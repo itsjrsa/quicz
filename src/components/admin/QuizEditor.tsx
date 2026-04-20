@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { buttonClass } from "@/components/ui";
+import ImportQuizModal from "@/components/admin/ImportQuizModal";
 
 interface Choice {
   id: string;
@@ -60,6 +61,7 @@ export default function QuizEditor({ initialData, quizId }: Props) {
   const [timeLimit, setTimeLimit] = useState<number | null>(initialData.timeLimit ?? null);
   const [questions, setQuestions] = useState<Question[]>(initialData.questions);
   const [saving, setSaving] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [savedTick, setSavedTick] = useState(0);
@@ -360,6 +362,18 @@ export default function QuizEditor({ initialData, quizId }: Props) {
           >
             Start session
           </button>
+          <a
+            href={`/api/quizzes/${quizId}/export`}
+            className={buttonClass("ghost", "md")}
+          >
+            Export
+          </a>
+          <button
+            onClick={() => setShowImport(true)}
+            className={buttonClass("ghost", "md")}
+          >
+            Import
+          </button>
           <button
             onClick={handleDelete}
             className={buttonClass("danger", "md")}
@@ -543,6 +557,10 @@ export default function QuizEditor({ initialData, quizId }: Props) {
           + Add question
         </button>
       </div>
+
+      {showImport && (
+        <ImportQuizModal quizId={quizId} onClose={() => setShowImport(false)} />
+      )}
     </div>
   );
 }
