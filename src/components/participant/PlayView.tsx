@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSocket } from "@/lib/socket/client";
 import type {
   SessionStatePayload,
@@ -29,6 +29,8 @@ export default function PlayView({ sessionCode }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [rejected, setRejected] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const choiceRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     fetch(`/api/sessions/by-code/${sessionCode}`)
@@ -115,6 +117,58 @@ export default function PlayView({ sessionCode }: Props) {
     const interval = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(interval);
   }, [state?.phase, state?.timeLimit, state?.questionOpenedAt]);
+
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [state?.question?.id]);
+
+  useEffect(() => {
+    if (!state || state.phase !== "question_open" || submitted) return;
+    const btn = choiceRefs.current[focusedIndex];
+    if (btn) btn.focus();
+  }, [focusedIndex, state?.phase, state?.question?.id, submitted, state]);
+
+  useEffect(() => {
+    if (!state || state.phase !== "question_open" || submitted) return;
+    const choices = state.choices;
+    const question = state.question;
+    if (!choices.length || !question) return;
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setFocusedIndex((i) => (i + 1) % choices.length);
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        setFocusedIndex((i) => (i - 1 + choices.length) % choices.length);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const choice = choices[focusedIndex];
+        if (!choice) return;
+        if (question.type === "single") {
+          if (selectedChoices[0] === choice.id) {
+            submitAnswer();
+          } else {
+            setSelectedChoices([choice.id]);
+          }
+        } else {
+          if (selectedChoices.length > 0) submitAnswer();
+        }
+      } else if (e.key === " " && question.type === "multi") {
+        e.preventDefault();
+        const choice = choices[focusedIndex];
+        if (choice) toggleChoice(choice.id);
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [state, submitted, focusedIndex, selectedChoices]);
 
   function toggleChoice(choiceId: string) {
     if (!state || state.phase !== "question_open" || submitted) return;
@@ -434,10 +488,17 @@ export default function PlayView({ sessionCode }: Props) {
                 choiceClass += "border-line hover:border-ink-strong";
               }
 
+              const choiceIndex = state.choices.indexOf(choice);
               return (
                 <button
                   key={choice.id}
-                  onClick={() => toggleChoice(choice.id)}
+                  ref={(el) => {
+                    choiceRefs.current[choiceIndex] = el;
+                  }}
+                  onClick={() => {
+                    setFocusedIndex(choiceIndex);
+                    toggleChoice(choice.id);
+                  }}
                   disabled={isLocked || submitted}
                   className={choiceClass}
                 >
