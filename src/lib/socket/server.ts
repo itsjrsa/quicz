@@ -133,6 +133,59 @@ function buildSessionState(
   };
 }
 
+function computeQuestionDistribution(
+  sessionId: string,
+  questionId: string
+): {
+  choices: { id: string; text: string; isCorrect: boolean }[];
+  distribution: { choiceId: string; count: number }[];
+  correctResponseCount: number;
+} {
+  const qChoices = getChoices([questionId]);
+  const correctChoiceIds = qChoices
+    .filter((c) => c.isCorrect === 1)
+    .map((c) => c.id)
+    .sort();
+  const qResponses = db
+    .select()
+    .from(responses)
+    .where(eq(responses.questionId, questionId))
+    .all()
+    .filter((r) => r.sessionId === sessionId);
+
+  const distribution = qChoices.map((c) => ({
+    choiceId: c.id,
+    count: qResponses.filter((r) => {
+      try {
+        return (JSON.parse(r.choiceIds) as string[]).includes(c.id);
+      } catch {
+        return false;
+      }
+    }).length,
+  }));
+
+  // Compute correctness from choiceIds directly rather than the persisted
+  // isCorrect column, so the count is accurate during question_open before
+  // scoreQuestion runs on lock.
+  const correctResponseCount = qResponses.filter((r) => {
+    try {
+      const ids = (JSON.parse(r.choiceIds) as string[]).slice().sort();
+      return (
+        ids.length === correctChoiceIds.length &&
+        ids.every((id, i) => id === correctChoiceIds[i])
+      );
+    } catch {
+      return false;
+    }
+  }).length;
+
+  return {
+    choices: qChoices.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect === 1 })),
+    distribution,
+    correctResponseCount,
+  };
+}
+
 function buildAdminState(
   session: typeof liveSessions.$inferSelect,
   quiz: typeof quizzes.$inferSelect | null,
@@ -144,6 +197,19 @@ function buildAdminState(
       ? quizQuestions[session.currentQuestionIndex] ?? null
       : null;
   const responseCount = question ? getResponseCount(session.id, question.id) : 0;
+
+  const hasQuestionStats =
+    question &&
+    (session.phase === "question_open" ||
+      session.phase === "question_locked" ||
+      session.phase === "results");
+  const stats = hasQuestionStats ? computeQuestionDistribution(session.id, question.id) : null;
+  // Choice texts / bar distribution are only meaningful after lock; during
+  // open voting we keep the running Correct tally only to avoid spoiling the
+  // bars on the shared screen.
+  const showBars =
+    question && (session.phase === "question_locked" || session.phase === "results");
+  const dist = showBars ? stats : null;
 
   return {
     sessionId: session.id,
@@ -163,6 +229,9 @@ function buildAdminState(
       ? { id: question.id, title: question.title, type: question.type, points: question.points }
       : null,
     participantList: session.phase === "lobby" ? getParticipantList(session.id) : undefined,
+    choices: dist?.choices,
+    distribution: dist?.distribution,
+    correctResponseCount: stats?.correctResponseCount,
   };
 }
 
@@ -241,6 +310,30 @@ function clearAutoLock(sessionId: string) {
   }
 }
 
+function lockAndShowResults(io: SocketIOServer, sessionId: string) {
+  const session = getSession(sessionId);
+  if (!session || session.phase !== "question_open") return;
+
+  db.update(liveSessions)
+    .set({ phase: "results", answersVisible: 1, correctRevealed: 0 })
+    .where(eq(liveSessions.id, session.id))
+    .run();
+
+  const quizQuestions = getQuestions(session.quizId);
+  const currentQuestion = quizQuestions[session.currentQuestionIndex];
+  if (currentQuestion) {
+    scoreQuestion(currentQuestion.id, session.id);
+    const { distribution } = computeQuestionDistribution(session.id, currentQuestion.id);
+    io.to(`session:${session.code}`).emit("session:results", {
+      questionId: currentQuestion.id,
+      distribution,
+    });
+  }
+
+  const updated = getSession(sessionId)!;
+  broadcastSessionState(io, updated);
+}
+
 function autoLockQuestion(
   io: SocketIOServer,
   sessionId: string,
@@ -252,19 +345,7 @@ function autoLockQuestion(
   if (session.phase !== "question_open") return;
   if (session.currentQuestionIndex !== expectedQuestionIndex) return;
 
-  db.update(liveSessions)
-    .set({ phase: "question_locked" })
-    .where(eq(liveSessions.id, session.id))
-    .run();
-
-  const quizQuestions = getQuestions(session.quizId);
-  const currentQuestion = quizQuestions[session.currentQuestionIndex];
-  if (currentQuestion) {
-    scoreQuestion(currentQuestion.id, session.id);
-  }
-
-  const updated = getSession(sessionId)!;
-  broadcastSessionState(io, updated);
+  lockAndShowResults(io, sessionId);
 }
 
 function scheduleAutoLock(io: SocketIOServer, sessionId: string) {
@@ -384,12 +465,18 @@ export function setupSocketHandlers(io: SocketIOServer) {
       // Update admin response count
       const responseCount = getResponseCount(sessionId, payload.questionId);
       const totalParticipants = getParticipantCount(sessionId);
+      const { correctResponseCount } = computeQuestionDistribution(
+        sessionId,
+        payload.questionId
+      );
       io.to(`admin:${sessionId}`).emit("admin:response-count", {
         questionId: payload.questionId,
         count: responseCount,
         total: totalParticipants,
+        correctCount: correctResponseCount,
       });
-      // Also broadcast to participants so they can see live progress
+      // Also broadcast to participants so they can see live progress (without
+      // the correctCount — that's admin-only).
       const sessionCode = (socket.data as { sessionCode?: string }).sessionCode;
       if (sessionCode) {
         io.to(`session:${sessionCode}`).emit("session:response-count", {
@@ -587,25 +674,14 @@ export function setupSocketHandlers(io: SocketIOServer) {
     });
 
     // ── Admin: lock-voting ──────────────────────────────────────────────────
+    // Locking closes voting, scores responses, and reveals the answer
+    // distribution (without marking correct/incorrect) so the admin can
+    // discuss the results on the shared screen before revealing the answer.
     socket.on("admin:lock-voting", (payload: AdminActionPayload) => {
       const session = getSession(payload.sessionId);
       if (!session || session.phase !== "question_open") return;
       clearAutoLock(session.id);
-
-      db.update(liveSessions)
-        .set({ phase: "question_locked" })
-        .where(eq(liveSessions.id, session.id))
-        .run();
-
-      // Score all responses for the current question (synchronous with better-sqlite3)
-      const quizQuestions = getQuestions(session.quizId);
-      const currentQuestion = quizQuestions[session.currentQuestionIndex];
-      if (currentQuestion) {
-        scoreQuestion(currentQuestion.id, session.id);
-      }
-
-      const updated = getSession(payload.sessionId)!;
-      broadcastSessionState(io, updated);
+      lockAndShowResults(io, session.id);
     });
 
     // ── Admin: show-results ─────────────────────────────────────────────────

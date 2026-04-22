@@ -31,6 +31,7 @@ export interface ResponseCountPayload {
   questionId: string;
   count: number;
   total: number;
+  correctCount?: number;
 }
 
 export interface CorrectPayload {
@@ -69,6 +70,11 @@ export interface AdminStatePayload {
     points: number;
   } | null;
   participantList?: { id: string; displayName: string }[];
+  // Populated on question_locked / results phases so the admin presenter can
+  // render the per-choice distribution and discuss it with the room.
+  choices?: { id: string; text: string; isCorrect: boolean }[];
+  distribution?: { choiceId: string; count: number }[];
+  correctResponseCount?: number;
 }
 
 // Client -> Server

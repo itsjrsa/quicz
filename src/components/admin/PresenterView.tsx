@@ -18,6 +18,88 @@ const PHASE_STYLES: Record<string, { label: string; className: string }> = {
   final: { label: "Final", className: "bg-ink-strong text-surface" },
 };
 
+function StatsRow({ state, showCorrect }: { state: AdminStatePayload; showCorrect: boolean }) {
+  const answered = state.responseCount;
+  const total = state.totalParticipants;
+  const correct = state.correctResponseCount ?? 0;
+  return (
+    <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+      <div>
+        <p className="text-xs uppercase tracking-wider text-ink-faint font-mono">Answered</p>
+        <p className="text-3xl font-bold tabular-nums">
+          {answered}
+          <span className="text-ink-faint font-normal"> / {total}</span>
+        </p>
+      </div>
+      {showCorrect && (
+        <div>
+          <p className="text-xs uppercase tracking-wider text-ink-faint font-mono">Correct</p>
+          <p className="text-3xl font-bold tabular-nums">
+            {correct}
+            <span className="text-ink-faint font-normal"> / {answered}</span>
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DistributionPanel({ state }: { state: AdminStatePayload }) {
+  if (!state.choices || !state.distribution) return null;
+  const totalVotes = state.distribution.reduce((s, d) => s + d.count, 0);
+  const reveal = state.correctRevealed;
+
+  return (
+    <div className="mb-6 quicz-fade-in">
+      <div className="mb-4">
+        <StatsRow state={state} showCorrect />
+      </div>
+
+      <div className="space-y-2">
+        {state.choices.map((choice) => {
+          const count = state.distribution?.find((d) => d.choiceId === choice.id)?.count ?? 0;
+          const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+
+          let borderColor = "border-line";
+          let barColor = "bg-line-strong";
+          let textColor = "text-ink";
+          if (reveal) {
+            if (choice.isCorrect) {
+              borderColor = "border-success";
+              barColor = "bg-success";
+            } else {
+              textColor = "text-ink-faint";
+            }
+          }
+
+          return (
+            <div
+              key={choice.id}
+              className={`relative w-full rounded-xl border-2 overflow-hidden ${borderColor}`}
+            >
+              <div
+                className={`absolute inset-y-0 left-0 ${barColor} opacity-20 transition-all duration-500`}
+                style={{ width: `${pct}%` }}
+              />
+              <div className={`relative flex items-center justify-between px-5 py-4 font-medium ${textColor}`}>
+                <span className="flex items-center gap-2">
+                  {reveal && choice.isCorrect && (
+                    <span className="text-success font-bold" aria-label="Correct answer">✓</span>
+                  )}
+                  <span className="truncate">{choice.text}</span>
+                </span>
+                <span className="text-sm font-semibold tabular-nums shrink-0">
+                  {count} <span className="font-normal opacity-60">({pct}%)</span>
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function PresenterView({ sessionId }: Props) {
   const { socket, connected } = useSocket();
   const [state, setState] = useState<AdminStatePayload | null>(null);
@@ -64,9 +146,21 @@ export default function PresenterView({ sessionId }: Props) {
       }
     };
 
-    const onResponseCount = (payload: { questionId: string; count: number; total: number }) => {
+    const onResponseCount = (payload: {
+      questionId: string;
+      count: number;
+      total: number;
+      correctCount?: number;
+    }) => {
       setState((prev) =>
-        prev ? { ...prev, responseCount: payload.count, totalParticipants: payload.total } : prev
+        prev
+          ? {
+              ...prev,
+              responseCount: payload.count,
+              totalParticipants: payload.total,
+              correctResponseCount: payload.correctCount ?? prev.correctResponseCount,
+            }
+          : prev
       );
     };
 
@@ -395,16 +489,8 @@ export default function PresenterView({ sessionId }: Props) {
             {state.question.title}
           </p>
           {phase === "question_open" && (
-            <div className="mt-6 flex items-end gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-ink-faint font-mono">
-                  Responses
-                </p>
-                <p className="text-3xl font-bold tabular-nums">
-                  {state.responseCount}
-                  <span className="text-ink-faint font-normal"> / {state.totalParticipants}</span>
-                </p>
-              </div>
+            <div className="mt-6 flex items-end gap-4">
+              <StatsRow state={state} showCorrect />
               <div className="flex-1 h-2 rounded-full bg-line overflow-hidden mb-1">
                 <div
                   className="h-2 bg-ink-strong transition-all duration-500"
@@ -422,6 +508,8 @@ export default function PresenterView({ sessionId }: Props) {
           )}
         </div>
       )}
+
+      {(phase === "results" || phase === "question_locked") && <DistributionPanel state={state} />}
 
       {phase === "final" && scoreboard && (
         <div className="mb-6">
@@ -463,7 +551,7 @@ export default function PresenterView({ sessionId }: Props) {
               onClick={() => emit("admin:lock-voting")}
               className={buttonClass("primary", "md")}
             >
-              Lock voting
+              Lock &amp; show results
             </button>
           </>
         )}
