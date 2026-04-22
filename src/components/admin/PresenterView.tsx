@@ -24,6 +24,7 @@ export default function PresenterView({ sessionId }: Props) {
   const [sessionCode, setSessionCode] = useState<string>("");
   const [scoreboard, setScoreboard] = useState<ScoreboardPayload | null>(null);
   const [copied, setCopied] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
   const [joinUrl, setJoinUrl] = useState<string>("");
   const [lobbyParticipants, setLobbyParticipants] = useState<{ id: string; displayName: string }[]>([]);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -39,6 +40,15 @@ export default function PresenterView({ sessionId }: Props) {
       await navigator.clipboard.writeText(sessionCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  }
+
+  async function copyUrl() {
+    if (!joinUrl) return;
+    try {
+      await navigator.clipboard.writeText(joinUrl);
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 1500);
     } catch {}
   }
 
@@ -216,7 +226,29 @@ export default function PresenterView({ sessionId }: Props) {
           </div>
           <div className="flex-1 min-w-0 w-full">
             <p className="text-xs uppercase tracking-wider text-ink-faint mb-1 font-mono">Scan or join at</p>
-            <p className="text-sm font-mono text-ink-muted truncate">{joinUrl || "…"}</p>
+            <div className="flex items-center gap-1">
+              <p className="text-sm font-mono text-ink-muted truncate">{joinUrl || "…"}</p>
+              {joinUrl && (
+                <button
+                  type="button"
+                  onClick={copyUrl}
+                  aria-label={urlCopied ? "Copied join URL" : "Copy join URL"}
+                  title={urlCopied ? "Copied" : "Copy URL"}
+                  className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-ink-faint hover:text-ink hover:bg-surface-muted transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                >
+                  {urlCopied ? (
+                    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-success" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3,8.5 6.5,12 13,5" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5" y="5" width="8.5" height="8.5" rx="1.5" />
+                      <path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2h7" />
+                    </svg>
+                  )}
+                </button>
+              )}
+            </div>
             <div className="mt-4 flex items-end gap-2">
               <div>
                 <p className="text-xs uppercase tracking-wider text-ink-faint font-mono">Code</p>
