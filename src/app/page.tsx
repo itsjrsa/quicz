@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { buttonClass } from "@/components/ui";
+import { buttonClass, ThemeToggle } from "@/components/ui";
 
 export default function HomePage() {
   return (
@@ -41,8 +41,9 @@ export default function HomePage() {
         </div>
       </div>
 
-      <footer className="relative z-10 px-6 pb-6 text-center text-xs text-ink-faint">
-        Quicz · One quiz, one room, one code.
+      <footer className="relative z-10 flex flex-col items-center gap-4 px-6 pb-6 text-center text-xs text-ink-faint">
+        <span>Quicz · One quiz, one room, one code.</span>
+        <ThemeToggle />
       </footer>
     </main>
   );

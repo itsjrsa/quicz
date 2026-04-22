@@ -42,8 +42,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const themeInit = `(function(){try{var s=localStorage.getItem('quicz-theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+      </head>
       <body className="font-sans bg-surface text-ink antialiased">{children}</body>
     </html>
   );

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -10,8 +12,8 @@
   --color-surface-muted: #f7f7f8;
   --color-surface-sunken: #f0f0f2;
 
-  --color-ink: #0a0a0a;
-  --color-ink-strong: #000000;
+  --color-ink: #1e1e1e;
+  --color-ink-strong: #1e1e1e;
   --color-ink-muted: #4b5563;
   --color-ink-subtle: #6b7280;
   --color-ink-faint: #9ca3af;
@@ -25,6 +27,33 @@
   --color-danger-soft: #fee2e2;
   --color-warning: #a16207;
   --color-warning-soft: #fef3c7;
+}
+
+.dark {
+  --color-surface: #1e1e1e;
+  --color-surface-muted: #262626;
+  --color-surface-sunken: #171717;
+
+  --color-ink: #e0e0e0;
+  --color-ink-strong: #e0e0e0;
+  --color-ink-muted: #c8c8c8;
+  --color-ink-subtle: #a8a8a8;
+  --color-ink-faint: #808080;
+
+  --color-line: #3a3a3a;
+  --color-line-strong: #525252;
+
+  --color-success: #86efac;
+  --color-success-soft: #2f5a3d;
+  --color-danger: #fca5a5;
+  --color-danger-soft: #5a2f2f;
+  --color-warning: #fde68a;
+  --color-warning-soft: #5a4a1f;
+}
+
+html {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
 }
 
 @keyframes quicz-pop-in {
@@ -64,4 +93,12 @@
     transparent 0
   );
   background-size: 22px 22px;
+}
+
+.dark .quicz-grid-bg {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgba(245, 245, 245, 0.08) 1px,
+    transparent 0
+  );
 }
