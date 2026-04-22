@@ -11,7 +11,7 @@ export function useSocket() {
 
   useEffect(() => {
     if (!globalSocket) {
-      globalSocket = io({ path: "/socket.io", transports: ["websocket", "polling"] });
+      globalSocket = io({ path: "/socket.io", transports: ["polling", "websocket"] });
     }
     socketRef.current = globalSocket;
 
