@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { buttonClass, Input } from "@/components/ui";
+import { buttonClass, Input, ThemeToggle } from "@/components/ui";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -31,7 +31,10 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-muted px-4">
+    <div className="relative min-h-screen flex items-center justify-center bg-surface-muted px-4">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle showLabel={false} />
+      </div>
       <div className="w-full max-w-sm quicz-fade-in">
         <div className="text-center mb-8">
           <Link
@@ -80,7 +83,7 @@ export default function AdminLoginPage() {
         <p className="mt-4 text-center text-sm">
           <Link
             href="/"
-            className="font-bold text-ink hover:text-ink-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-1"
+            className="font-medium text-ink-muted hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-1"
           >
             ← Back to home
           </Link>

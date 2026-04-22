@@ -11,7 +11,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { buttonClass, Input } from "@/components/ui";
+import { buttonClass, Input, ThemeToggle } from "@/components/ui";
 
 const CODE_LENGTH = 6;
 
@@ -118,7 +118,10 @@ function JoinInner() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4 bg-surface">
+    <main className="relative min-h-screen flex flex-col items-center justify-center px-4 bg-surface">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle showLabel={false} />
+      </div>
       <div className="w-full max-w-sm quicz-fade-in">
         <div className="text-center mb-10">
           <Link

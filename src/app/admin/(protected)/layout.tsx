@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isAdminAuthenticated } from "@/lib/auth";
 import LogoutButton from "@/components/admin/LogoutButton";
+import { ThemeToggle } from "@/components/ui";
 
 export default async function ProtectedAdminLayout({
   children,
@@ -25,7 +26,10 @@ export default async function ProtectedAdminLayout({
             Admin
           </span>
         </Link>
-        <LogoutButton />
+        <div className="flex items-center gap-2">
+          <ThemeToggle showLabel={false} />
+          <LogoutButton />
+        </div>
       </header>
       <main className="p-6">{children}</main>
     </div>

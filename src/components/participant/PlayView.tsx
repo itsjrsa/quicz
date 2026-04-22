@@ -9,7 +9,7 @@ import type {
   ScoreboardPayload,
   ResponseCountPayload,
 } from "@/lib/socket/events";
-import { buttonClass } from "@/components/ui";
+import { buttonClass, ThemeToggle } from "@/components/ui";
 
 interface Props {
   sessionCode: string;
@@ -273,7 +273,10 @@ export default function PlayView({ sessionCode }: Props) {
     remainingSeconds === 0 && state.phase === "question_open";
 
   return (
-    <div className="min-h-screen flex flex-col bg-surface">
+    <div className="relative min-h-screen flex flex-col bg-surface">
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeToggle showLabel={false} />
+      </div>
       <div className="h-1 bg-surface-muted">
         <div
           className="h-1 bg-ink-strong transition-all duration-500"
@@ -506,7 +509,10 @@ export default function PlayView({ sessionCode }: Props) {
 
 function Screen({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-surface text-center">
+    <div className="relative min-h-screen flex flex-col items-center justify-center px-4 bg-surface text-center">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle showLabel={false} />
+      </div>
       {children}
     </div>
   );

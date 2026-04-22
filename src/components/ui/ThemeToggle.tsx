@@ -11,7 +11,13 @@ function applyTheme(theme: Theme) {
   root.classList.toggle("dark", theme === "dark");
 }
 
-export function ThemeToggle({ className = "" }: { className?: string }) {
+export function ThemeToggle({
+  className = "",
+  showLabel = true,
+}: {
+  className?: string;
+  showLabel?: boolean;
+}) {
   const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
@@ -50,9 +56,11 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       >
         {mounted && isDark ? <SunIcon /> : <MoonIcon />}
       </span>
-      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity,padding] duration-200 group-hover:max-w-[120px] group-hover:opacity-100 group-hover:pl-1.5 group-hover:pr-2 group-focus-visible:max-w-[120px] group-focus-visible:opacity-100 group-focus-visible:pl-1.5 group-focus-visible:pr-2">
-        {label}
-      </span>
+      {showLabel && (
+        <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity,padding] duration-200 group-hover:max-w-[120px] group-hover:opacity-100 group-hover:pl-1.5 group-hover:pr-2 group-focus-visible:max-w-[120px] group-focus-visible:opacity-100 group-focus-visible:pl-1.5 group-focus-visible:pr-2">
+          {label}
+        </span>
+      )}
     </button>
   );
 }
