@@ -12,7 +12,7 @@ export default function HomePage() {
       <header className="relative z-10 flex justify-end px-6 pt-6">
         <Link
           href="/admin"
-          className="text-sm text-ink-muted hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-2 py-1"
+          className="text-sm font-bold text-ink hover:text-ink-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-2 py-1"
         >
           Admin
         </Link>

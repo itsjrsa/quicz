@@ -77,6 +77,14 @@ export default function AdminLoginPage() {
             </button>
           </form>
         </div>
+        <p className="mt-4 text-center text-sm">
+          <Link
+            href="/"
+            className="font-bold text-ink hover:text-ink-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 rounded px-1"
+          >
+            ← Back to home
+          </Link>
+        </p>
       </div>
     </div>
   );
