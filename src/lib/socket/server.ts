@@ -11,6 +11,7 @@ import {
 import { eq, inArray, and } from "drizzle-orm";
 import { scoreQuestion } from "../scoring";
 import { v4 as uuidv4 } from "uuid";
+import { logger } from "../logger";
 import type {
   SessionStatePayload,
   AdminStatePayload,
@@ -24,6 +25,7 @@ import type {
 
 const GRACE_MS = 1000;
 const autoLockTimers = new Map<string, NodeJS.Timeout>();
+const log = logger.child({ scope: "socket" });
 
 // Share io across Next.js bundler module boundaries via globalThis
 const IO_KEY = Symbol.for("quicz.io");
@@ -250,6 +252,15 @@ function broadcastSessionState(
   // Admin state
   const adminPayload = buildAdminState(session, quiz, quizQuestions);
   io.to(`admin:${session.id}`).emit("admin:state", adminPayload);
+
+  log.info("session.broadcast", {
+    sessionId: session.id,
+    code: session.code,
+    phase: session.phase,
+    currentQuestionIndex: session.currentQuestionIndex,
+    answersVisible: Boolean(session.answersVisible),
+    correctRevealed: Boolean(session.correctRevealed),
+  });
 }
 
 function computeScoreboard(
@@ -345,6 +356,10 @@ function autoLockQuestion(
   if (session.phase !== "question_open") return;
   if (session.currentQuestionIndex !== expectedQuestionIndex) return;
 
+  log.info("session.autolock", {
+    sessionId,
+    questionIndex: expectedQuestionIndex,
+  });
   lockAndShowResults(io, sessionId);
 }
 
@@ -370,14 +385,32 @@ function scheduleAutoLock(io: SocketIOServer, sessionId: string) {
 export function setupSocketHandlers(io: SocketIOServer) {
   setIo(io);
   io.on("connection", (socket: Socket) => {
+    log.debug("socket.connect", { socketId: socket.id });
+    socket.on("disconnect", (reason) => {
+      log.debug("socket.disconnect", {
+        socketId: socket.id,
+        reason,
+        participantId: socket.data.participantId,
+        sessionId: socket.data.sessionId ?? socket.data.adminSessionId,
+      });
+    });
+
     // ── Participant join ────────────────────────────────────────────────────
     socket.on("participant:join", (payload: ParticipantJoinPayload) => {
       const session = getSessionByCode(payload.sessionCode.toUpperCase());
-      if (!session) return;
+      if (!session) {
+        log.warn("participant.join.unknown_code", {
+          socketId: socket.id,
+          code: payload.sessionCode,
+        });
+        return;
+      }
 
       let participant = payload.participantId
         ? db.select().from(participants).where(eq(participants.id, payload.participantId)).get()
         : null;
+
+      const isReconnect = Boolean(participant && participant.sessionId === session.id);
 
       if (!participant || participant.sessionId !== session.id) {
         // New participant
@@ -395,6 +428,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
           displayName: participant.displayName,
         });
       }
+
+      log.info("participant.join", {
+        sessionId: session.id,
+        code: session.code,
+        participantId: participant.id,
+        reconnect: isReconnect,
+      });
 
       socket.join(`session:${session.code}`);
       // Store participant context in socket data for submit handler
@@ -418,12 +458,25 @@ export function setupSocketHandlers(io: SocketIOServer) {
       if (!participantId || !sessionId) return;
 
       const session = getSession(sessionId);
-      if (!session || session.phase !== "question_open") return;
+      if (!session || session.phase !== "question_open") {
+        log.debug("participant.submit.rejected", {
+          participantId,
+          sessionId,
+          reason: "phase_closed",
+          phase: session?.phase,
+        });
+        return;
+      }
 
       const quiz = getQuiz(session.quizId);
       if (quiz?.timeLimit && session.questionOpenedAt) {
         const deadline = session.questionOpenedAt + quiz.timeLimit * 1000 + GRACE_MS;
         if (Date.now() > deadline) {
+          log.debug("participant.submit.rejected", {
+            participantId,
+            sessionId,
+            reason: "time_expired",
+          });
           socket.emit("session:submit-rejected", {
             questionId: payload.questionId,
             reason: "time_expired",
@@ -462,6 +515,14 @@ export function setupSocketHandlers(io: SocketIOServer) {
           .run();
       }
 
+      log.debug("participant.submit", {
+        sessionId,
+        participantId,
+        questionId: payload.questionId,
+        choiceCount: payload.choiceIds.length,
+        updated: Boolean(existing),
+      });
+
       // Update admin response count
       const responseCount = getResponseCount(sessionId, payload.questionId);
       const totalParticipants = getParticipantCount(sessionId);
@@ -490,10 +551,15 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // ── Admin join ──────────────────────────────────────────────────────────
     socket.on("admin:join", (payload: AdminJoinPayload) => {
       const session = getSession(payload.sessionId);
-      if (!session) return;
+      if (!session) {
+        log.warn("admin.join.unknown_session", { sessionId: payload.sessionId });
+        return;
+      }
 
       socket.join(`admin:${session.id}`);
       socket.data.adminSessionId = session.id;
+
+      log.info("admin.join", { sessionId: session.id, code: session.code });
 
       const quiz = getQuiz(session.quizId);
       const quizQuestions = getQuestions(session.quizId);
@@ -806,6 +872,8 @@ export function setupSocketHandlers(io: SocketIOServer) {
         .where(eq(liveSessions.id, session.id))
         .run();
 
+      log.info("session.end", { sessionId: session.id, code: session.code });
+
       io.to(`session:${session.code}`).emit("session:ended", {});
 
       const updated = getSession(payload.sessionId)!;
@@ -821,6 +889,9 @@ export function setupSocketHandlers(io: SocketIOServer) {
     .from(liveSessions)
     .where(eq(liveSessions.phase, "question_open"))
     .all();
+  if (activeSessions.length > 0) {
+    log.info("socket.boot.reschedule_autolocks", { count: activeSessions.length });
+  }
   for (const s of activeSessions) {
     scheduleAutoLock(io, s.id);
   }

@@ -17,7 +17,11 @@ There is no test runner, linter, or formatter configured. Type-checking runs as 
 
 Migrations run automatically at server boot (`server.ts` calls `migrate(...)` before `app.prepare()`), so `db:migrate` is rarely needed manually.
 
-Required env vars (see `.env.example`): `ADMIN_PASSWORD`, `SESSION_SECRET`. Optional: `DATABASE_URL` (default `./data/quicz.db`), `PORT` (default `3000`).
+Required env vars (see `.env.example`): `ADMIN_PASSWORD`, `SESSION_SECRET`. Optional: `DATABASE_URL` (default `./data/quicz.db`), `PORT` (default `3000`), `LOG_LEVEL` (`debug`|`info`|`warn`|`error`|`silent`; defaults to `debug` in dev, `info` in prod).
+
+## Logging
+
+Structured logger lives in `src/lib/logger.ts` — no external deps. It emits JSON lines when `NODE_ENV=production`, human-readable text otherwise. Use `logger.child({ scope, ... })` to tag lines; prefer dotted event names (`http.request`, `participant.join`, `session.broadcast`). HTTP requests are logged in `server.ts`; socket events and phase transitions in `src/lib/socket/server.ts`. Don't log secrets, cookies, or request bodies.
 
 ## Architecture
 

@@ -10,9 +10,15 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - DATABASE_URL=/app/data/quicz.db
       - PORT=3000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       - quicz_data:/app/data
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 volumes:
   quicz_data:
