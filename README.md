@@ -1,11 +1,15 @@
-# Quicz
+<h1 align="center">Quicz</h1>
 
-> **Quick Quiz** — a lean, self-hostable live quiz for the room you're already in. One code, one room, no signups.
+<p align="center">
+  <strong>Quick Quiz</strong> — a lean, self-hostable live quiz for the room you're already in. One code, one room, no signups.
+</p>
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](./LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
-[![Docs](https://img.shields.io/badge/docs-zensical-0ea5e9.svg)](https://itsjrsa.github.io/quicz/)
+<p align="center">
+  <a href="./LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/License-AGPL_v3-blue.svg"></a>
+  <a href="https://nodejs.org/"><img alt="Node" src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg"></a>
+  <a href="https://nextjs.org/"><img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-black.svg"></a>
+  <a href="https://itsjrsa.github.io/quicz/"><img alt="Docs" src="https://img.shields.io/badge/docs-zensical-0ea5e9.svg"></a>
+</p>
 
 ![Main menu](docs/screenshots/main-menu.png)
 
