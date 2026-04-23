@@ -12,6 +12,8 @@ import { eq, inArray, and } from "drizzle-orm";
 import { scoreQuestion } from "../scoring";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../logger";
+import { verifyToken, COOKIE_NAME_EXPORT as ADMIN_COOKIE } from "../auth";
+import { getIo as getIoRef, setIo } from "./io-ref";
 import type {
   SessionStatePayload,
   AdminStatePayload,
@@ -27,15 +29,40 @@ const GRACE_MS = 1000;
 const autoLockTimers = new Map<string, NodeJS.Timeout>();
 const log = logger.child({ scope: "socket" });
 
-// Share io across Next.js bundler module boundaries via globalThis
-const IO_KEY = Symbol.for("quicz.io");
-type IoGlobal = typeof globalThis & { [IO_KEY]?: SocketIOServer };
-export function getIo(): SocketIOServer | null {
-  return (globalThis as IoGlobal)[IO_KEY] ?? null;
+function parseCookieHeader(header: string | undefined, name: string): string | null {
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    const k = part.slice(0, eq).trim();
+    if (k !== name) continue;
+    const v = part.slice(eq + 1).trim();
+    try {
+      return decodeURIComponent(v);
+    } catch {
+      return v;
+    }
+  }
+  return null;
 }
-function setIo(io: SocketIOServer) {
-  (globalThis as IoGlobal)[IO_KEY] = io;
+
+// Re-verify the handshake cookie on every admin event. The handshake cookie
+// itself is a frozen copy from connect time, so this catches:
+//   - token expiry (exp is absolute time, checked now)
+//   - SESSION_SECRET rotation (old signatures stop verifying)
+// It does NOT catch logout; that is handled by server-initiated disconnect
+// in DELETE /api/auth.
+function requireAdmin(socket: Socket): boolean {
+  const token = parseCookieHeader(socket.handshake.headers.cookie, ADMIN_COOKIE);
+  if (!token || !verifyToken(token)) {
+    log.warn("admin.event.unauthorized", { socketId: socket.id });
+    return false;
+  }
+  return true;
 }
+
+// Re-export so existing consumers keep working; canonical source is io-ref.
+export const getIo = getIoRef;
 
 function getSession(sessionId: string) {
   return db.select().from(liveSessions).where(eq(liveSessions.id, sessionId)).get() ?? null;
@@ -50,12 +77,22 @@ function getSessionByCode(code: string) {
 }
 
 function getQuestions(quizId: string) {
-  return db.select().from(questions).where(eq(questions.quizId, quizId)).orderBy(questions.order).all();
+  return db
+    .select()
+    .from(questions)
+    .where(eq(questions.quizId, quizId))
+    .orderBy(questions.order)
+    .all();
 }
 
 function getChoices(questionIds: string[]) {
   if (questionIds.length === 0) return [];
-  return db.select().from(choices).where(inArray(choices.questionId, questionIds)).orderBy(choices.order).all();
+  return db
+    .select()
+    .from(choices)
+    .where(inArray(choices.questionId, questionIds))
+    .orderBy(choices.order)
+    .all();
 }
 
 function getParticipantCount(sessionId: string): number {
@@ -84,15 +121,17 @@ function buildSessionState(
   quiz: typeof quizzes.$inferSelect | null,
   quizQuestions: (typeof questions.$inferSelect)[],
   allChoices: (typeof choices.$inferSelect)[],
-  participantId?: string
+  participantId?: string,
 ): SessionStatePayload {
   const question =
     session.phase !== "lobby" && session.phase !== "final"
-      ? quizQuestions[session.currentQuestionIndex] ?? null
+      ? (quizQuestions[session.currentQuestionIndex] ?? null)
       : null;
 
   const questionChoices = question
-    ? allChoices.filter((c) => c.questionId === question.id).map((c) => ({ id: c.id, text: c.text }))
+    ? allChoices
+        .filter((c) => c.questionId === question.id)
+        .map((c) => ({ id: c.id, text: c.text }))
     : [];
 
   let mySubmission: string[] | null = null;
@@ -119,8 +158,7 @@ function buildSessionState(
     answersVisible: Boolean(session.answersVisible),
     correctRevealed: Boolean(session.correctRevealed),
     timeLimit: quiz?.timeLimit ?? null,
-    questionOpenedAt:
-      session.phase === "question_open" ? session.questionOpenedAt ?? null : null,
+    questionOpenedAt: session.phase === "question_open" ? (session.questionOpenedAt ?? null) : null,
     question: question
       ? {
           id: question.id,
@@ -137,7 +175,7 @@ function buildSessionState(
 
 function computeQuestionDistribution(
   sessionId: string,
-  questionId: string
+  questionId: string,
 ): {
   choices: { id: string; text: string; isCorrect: boolean }[];
   distribution: { choiceId: string; count: number }[];
@@ -173,8 +211,7 @@ function computeQuestionDistribution(
     try {
       const ids = (JSON.parse(r.choiceIds) as string[]).slice().sort();
       return (
-        ids.length === correctChoiceIds.length &&
-        ids.every((id, i) => id === correctChoiceIds[i])
+        ids.length === correctChoiceIds.length && ids.every((id, i) => id === correctChoiceIds[i])
       );
     } catch {
       return false;
@@ -191,12 +228,12 @@ function computeQuestionDistribution(
 function buildAdminState(
   session: typeof liveSessions.$inferSelect,
   quiz: typeof quizzes.$inferSelect | null,
-  quizQuestions: (typeof questions.$inferSelect)[]
+  quizQuestions: (typeof questions.$inferSelect)[],
 ): AdminStatePayload {
   const participantCount = getParticipantCount(session.id);
   const question =
     session.phase !== "lobby" && session.phase !== "final"
-      ? quizQuestions[session.currentQuestionIndex] ?? null
+      ? (quizQuestions[session.currentQuestionIndex] ?? null)
       : null;
   const responseCount = question ? getResponseCount(session.id, question.id) : 0;
 
@@ -209,8 +246,7 @@ function buildAdminState(
   // Choice texts / bar distribution are only meaningful after lock; during
   // open voting we keep the running Correct tally only to avoid spoiling the
   // bars on the shared screen.
-  const showBars =
-    question && (session.phase === "question_locked" || session.phase === "results");
+  const showBars = question && (session.phase === "question_locked" || session.phase === "results");
   const dist = showBars ? stats : null;
 
   return {
@@ -225,8 +261,7 @@ function buildAdminState(
     responseCount,
     totalParticipants: participantCount,
     timeLimit: quiz?.timeLimit ?? null,
-    questionOpenedAt:
-      session.phase === "question_open" ? session.questionOpenedAt ?? null : null,
+    questionOpenedAt: session.phase === "question_open" ? (session.questionOpenedAt ?? null) : null,
     question: question
       ? { id: question.id, title: question.title, type: question.type, points: question.points }
       : null,
@@ -237,10 +272,7 @@ function buildAdminState(
   };
 }
 
-function broadcastSessionState(
-  io: SocketIOServer,
-  session: typeof liveSessions.$inferSelect
-) {
+function broadcastSessionState(io: SocketIOServer, session: typeof liveSessions.$inferSelect) {
   const quiz = getQuiz(session.quizId);
   const quizQuestions = getQuestions(session.quizId);
   const allChoices = getChoices(quizQuestions.map((q) => q.id));
@@ -264,9 +296,19 @@ function broadcastSessionState(
 }
 
 function computeScoreboard(
-  sessionId: string
-): { participantId: string; displayName: string; score: number; correctCount: number; rank: number }[] {
-  const sessionParticipants = db.select().from(participants).where(eq(participants.sessionId, sessionId)).all();
+  sessionId: string,
+): {
+  participantId: string;
+  displayName: string;
+  score: number;
+  correctCount: number;
+  rank: number;
+}[] {
+  const sessionParticipants = db
+    .select()
+    .from(participants)
+    .where(eq(participants.sessionId, sessionId))
+    .all();
   const sessionResponses =
     sessionParticipants.length > 0
       ? db.select().from(responses).where(eq(responses.sessionId, sessionId)).all()
@@ -345,11 +387,7 @@ function lockAndShowResults(io: SocketIOServer, sessionId: string) {
   broadcastSessionState(io, updated);
 }
 
-function autoLockQuestion(
-  io: SocketIOServer,
-  sessionId: string,
-  expectedQuestionIndex: number
-) {
+function autoLockQuestion(io: SocketIOServer, sessionId: string, expectedQuestionIndex: number) {
   autoLockTimers.delete(sessionId);
   const session = getSession(sessionId);
   if (!session) return;
@@ -373,10 +411,7 @@ function scheduleAutoLock(io: SocketIOServer, sessionId: string) {
   const expectedIndex = session.currentQuestionIndex;
   const deadline = session.questionOpenedAt + quiz.timeLimit * 1000;
   const delay = Math.max(0, deadline - Date.now());
-  const handle = setTimeout(
-    () => autoLockQuestion(io, sessionId, expectedIndex),
-    delay
-  );
+  const handle = setTimeout(() => autoLockQuestion(io, sessionId, expectedIndex), delay);
   autoLockTimers.set(sessionId, handle);
 }
 
@@ -384,8 +419,20 @@ function scheduleAutoLock(io: SocketIOServer, sessionId: string) {
 
 export function setupSocketHandlers(io: SocketIOServer) {
   setIo(io);
+
+  // Authenticate admin at handshake by reading the signed cookie. Participants
+  // have no cookie — they still connect, but socket.data.isAdmin stays false.
+  io.use((socket, next) => {
+    const token = parseCookieHeader(socket.handshake.headers.cookie, ADMIN_COOKIE);
+    socket.data.isAdmin = Boolean(token && verifyToken(token));
+    next();
+  });
+
   io.on("connection", (socket: Socket) => {
-    log.debug("socket.connect", { socketId: socket.id });
+    log.debug("socket.connect", {
+      socketId: socket.id,
+      isAdmin: socket.data.isAdmin === true,
+    });
     socket.on("disconnect", (reason) => {
       log.debug("socket.disconnect", {
         socketId: socket.id,
@@ -454,7 +501,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // ── Participant submit ──────────────────────────────────────────────────
     socket.on("participant:submit", (payload: ParticipantSubmitPayload) => {
-      const { participantId, sessionId } = socket.data as { participantId?: string; sessionId?: string };
+      const { participantId, sessionId } = socket.data as {
+        participantId?: string;
+        sessionId?: string;
+      };
       if (!participantId || !sessionId) return;
 
       const session = getSession(sessionId);
@@ -526,10 +576,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
       // Update admin response count
       const responseCount = getResponseCount(sessionId, payload.questionId);
       const totalParticipants = getParticipantCount(sessionId);
-      const { correctResponseCount } = computeQuestionDistribution(
-        sessionId,
-        payload.questionId
-      );
+      const { correctResponseCount } = computeQuestionDistribution(sessionId, payload.questionId);
       io.to(`admin:${sessionId}`).emit("admin:response-count", {
         questionId: payload.questionId,
         count: responseCount,
@@ -550,6 +597,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // ── Admin join ──────────────────────────────────────────────────────────
     socket.on("admin:join", (payload: AdminJoinPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session) {
         log.warn("admin.join.unknown_session", { sessionId: payload.sessionId });
@@ -569,6 +617,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // ── Admin: next ─────────────────────────────────────────────────────────
     socket.on("admin:next", (payload: AdminActionPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session) return;
 
@@ -608,6 +657,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // ── Admin: prev ─────────────────────────────────────────────────────────
     // Admin-only review: moves currentQuestionIndex back without broadcasting to participants
     socket.on("admin:prev", (payload: AdminActionPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session || session.phase !== "results") return;
 
@@ -623,11 +673,15 @@ export function setupSocketHandlers(io: SocketIOServer) {
       const updated = getSession(payload.sessionId)!;
       const quiz = getQuiz(updated.quizId);
       const quizQuestions = getQuestions(updated.quizId);
-      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quiz, quizQuestions));
+      io.to(`admin:${session.id}`).emit(
+        "admin:state",
+        buildAdminState(updated, quiz, quizQuestions),
+      );
     });
 
     // ── Admin: open-voting ──────────────────────────────────────────────────
     socket.on("admin:open-voting", (payload: AdminActionPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session || session.phase !== "question_locked") return;
 
@@ -637,7 +691,9 @@ export function setupSocketHandlers(io: SocketIOServer) {
       if (reopenQuestion) {
         db.update(responses)
           .set({ isCorrect: null, pointsEarned: null })
-          .where(and(eq(responses.sessionId, session.id), eq(responses.questionId, reopenQuestion.id)))
+          .where(
+            and(eq(responses.sessionId, session.id), eq(responses.questionId, reopenQuestion.id)),
+          )
           .run();
       }
 
@@ -653,6 +709,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // ── Admin: back ────────────────────────────────────────────────────────
     socket.on("admin:back", (payload: AdminActionPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session) return;
 
@@ -672,13 +729,24 @@ export function setupSocketHandlers(io: SocketIOServer) {
         const currentQuestion = quizQuestions[session.currentQuestionIndex];
         if (currentQuestion) {
           db.delete(responses)
-            .where(and(eq(responses.sessionId, session.id), eq(responses.questionId, currentQuestion.id)))
+            .where(
+              and(
+                eq(responses.sessionId, session.id),
+                eq(responses.questionId, currentQuestion.id),
+              ),
+            )
             .run();
         }
 
         if (session.currentQuestionIndex === 0) {
           db.update(liveSessions)
-            .set({ phase: "lobby", currentQuestionIndex: 0, answersVisible: 0, correctRevealed: 0, questionOpenedAt: null })
+            .set({
+              phase: "lobby",
+              currentQuestionIndex: 0,
+              answersVisible: 0,
+              correctRevealed: 0,
+              questionOpenedAt: null,
+            })
             .where(eq(liveSessions.id, session.id))
             .run();
           const updated = getSession(payload.sessionId)!;
@@ -686,7 +754,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
         } else {
           const prevIndex = session.currentQuestionIndex - 1;
           db.update(liveSessions)
-            .set({ phase: "results", currentQuestionIndex: prevIndex, answersVisible: 1, correctRevealed: 1, questionOpenedAt: null })
+            .set({
+              phase: "results",
+              currentQuestionIndex: prevIndex,
+              answersVisible: 1,
+              correctRevealed: 1,
+              questionOpenedAt: null,
+            })
             .where(eq(liveSessions.id, session.id))
             .run();
           const updated = getSession(payload.sessionId)!;
@@ -705,11 +779,17 @@ export function setupSocketHandlers(io: SocketIOServer) {
             const distribution = prevChoices.map((c) => ({
               choiceId: c.id,
               count: prevResponses.filter((r) => {
-                try { return (JSON.parse(r.choiceIds) as string[]).includes(c.id); }
-                catch { return false; }
+                try {
+                  return (JSON.parse(r.choiceIds) as string[]).includes(c.id);
+                } catch {
+                  return false;
+                }
               }).length,
             }));
-            io.to(`session:${updated.code}`).emit("session:results", { questionId: prevQuestion.id, distribution });
+            io.to(`session:${updated.code}`).emit("session:results", {
+              questionId: prevQuestion.id,
+              distribution,
+            });
 
             const correctChoiceIds = prevChoices.filter((c) => c.isCorrect === 1).map((c) => c.id);
             const room = io.sockets.adapter.rooms.get(`session:${updated.code}`);
@@ -725,12 +805,22 @@ export function setupSocketHandlers(io: SocketIOServer) {
                     .from(responses)
                     .where(eq(responses.participantId, pId))
                     .all()
-                    .find((resp) => resp.questionId === prevQuestion.id && resp.sessionId === session.id);
+                    .find(
+                      (resp) =>
+                        resp.questionId === prevQuestion.id && resp.sessionId === session.id,
+                    );
                   if (r && r.isCorrect !== null) {
-                    participantResult = { isCorrect: r.isCorrect === 1, pointsEarned: r.pointsEarned ?? 0 };
+                    participantResult = {
+                      isCorrect: r.isCorrect === 1,
+                      pointsEarned: r.pointsEarned ?? 0,
+                    };
                   }
                 }
-                targetSocket.emit("session:correct", { questionId: prevQuestion.id, correctChoiceIds, participantResult });
+                targetSocket.emit("session:correct", {
+                  questionId: prevQuestion.id,
+                  correctChoiceIds,
+                  participantResult,
+                });
               }
             }
           }
@@ -744,6 +834,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // distribution (without marking correct/incorrect) so the admin can
     // discuss the results on the shared screen before revealing the answer.
     socket.on("admin:lock-voting", (payload: AdminActionPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session || session.phase !== "question_open") return;
       clearAutoLock(session.id);
@@ -752,6 +843,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // ── Admin: show-results ─────────────────────────────────────────────────
     socket.on("admin:show-results", (payload: AdminActionPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session || session.phase !== "question_locked") return;
 
@@ -795,6 +887,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // ── Admin: show-correct ─────────────────────────────────────────────────
     socket.on("admin:show-correct", (payload: AdminActionPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session || session.phase !== "results") return;
 
@@ -827,9 +920,14 @@ export function setupSocketHandlers(io: SocketIOServer) {
                 .from(responses)
                 .where(eq(responses.participantId, pId))
                 .all()
-                .find((resp) => resp.questionId === currentQuestion.id && resp.sessionId === session.id);
+                .find(
+                  (resp) => resp.questionId === currentQuestion.id && resp.sessionId === session.id,
+                );
               if (r) {
-                participantResult = { isCorrect: r.isCorrect === 1, pointsEarned: r.pointsEarned ?? 0 };
+                participantResult = {
+                  isCorrect: r.isCorrect === 1,
+                  pointsEarned: r.pointsEarned ?? 0,
+                };
               }
             }
 
@@ -845,13 +943,11 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // ── Admin: show-scoreboard ──────────────────────────────────────────────
     socket.on("admin:show-scoreboard", (payload: AdminActionPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session || session.phase !== "results") return;
 
-      db.update(liveSessions)
-        .set({ phase: "final" })
-        .where(eq(liveSessions.id, session.id))
-        .run();
+      db.update(liveSessions).set({ phase: "final" }).where(eq(liveSessions.id, session.id)).run();
 
       const updated = getSession(payload.sessionId)!;
       broadcastSessionState(io, updated);
@@ -863,6 +959,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // ── Admin: end-session ──────────────────────────────────────────────────
     socket.on("admin:end-session", (payload: AdminActionPayload) => {
+      if (!requireAdmin(socket)) return;
       const session = getSession(payload.sessionId);
       if (!session) return;
       clearAutoLock(session.id);
@@ -879,7 +976,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
       const updated = getSession(payload.sessionId)!;
       const quiz = getQuiz(updated.quizId);
       const quizQuestions = getQuestions(updated.quizId);
-      io.to(`admin:${session.id}`).emit("admin:state", buildAdminState(updated, quiz, quizQuestions));
+      io.to(`admin:${session.id}`).emit(
+        "admin:state",
+        buildAdminState(updated, quiz, quizQuestions),
+      );
     });
   });
 

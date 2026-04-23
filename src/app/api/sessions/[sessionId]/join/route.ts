@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { liveSessions, participants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
-import { getIo } from "@/lib/socket/server";
+import { getIo } from "@/lib/socket/io-ref";
 
 type Params = { params: Promise<{ sessionId: string }> };
 
@@ -12,7 +12,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const session = db.select().from(liveSessions).where(eq(liveSessions.id, sessionId)).get();
   if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
-  if (session.status === "finished") return NextResponse.json({ error: "Session has ended" }, { status: 410 });
+  if (session.status === "finished")
+    return NextResponse.json({ error: "Session has ended" }, { status: 410 });
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body.displayName !== "string" || body.displayName.trim() === "") {

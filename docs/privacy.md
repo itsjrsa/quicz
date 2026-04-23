@@ -14,5 +14,6 @@ Quicz has a **single admin role, authenticated by one shared `ADMIN_PASSWORD`**.
 
 ## Exposure surface
 
-- Participant endpoints (join, submit answer) are **not rate-limited**. If the server is reachable from an untrusted network, expect that anyone with a valid session code can spam joins or submissions. Run Quicz on a LAN, behind a reverse proxy with rate limits, or on a private network if that matters.
-- The admin cookie is HMAC-signed with `SESSION_SECRET` and transmitted over whatever transport you terminate the server on. Put Quicz behind TLS (reverse proxy) in any deployment beyond `localhost`.
+- Participant endpoints (join, submit answer) and `POST /api/auth` are **not rate-limited**. On an untrusted network, anyone with a session code can spam joins or submissions, and anyone can brute-force the admin password at whatever rate the server accepts. Run Quicz on a LAN, behind a reverse proxy with rate limits, or on a private network if that matters.
+- The admin cookie is HMAC-signed with `SESSION_SECRET`, carries a 7-day expiry embedded in the token, and authenticates both HTTP admin routes and live Socket.IO admin events. Logout (`DELETE /api/auth`) clears the cookie client-side and disconnects any open admin sockets, but the token itself remains valid until its `exp` — treat a leaked cookie as compromising admin access for the remainder of the week, and rotate `SESSION_SECRET` to invalidate every outstanding token at once.
+- Put Quicz behind TLS (reverse proxy) in any deployment beyond `localhost` — the cookie is `Secure` in production but only useful if the transport is encrypted.

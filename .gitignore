@@ -25,3 +25,6 @@ data/
 
 # Internal planning/specs (superpowers skill)
 docs/superpowers/
+
+# Local Claude Code settings
+.claude/

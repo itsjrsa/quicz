@@ -1,9 +1,10 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 
 const COOKIE_NAME = "quicz_admin";
-const TOKEN_VALUE = "authenticated"; // what we sign
+const TOKEN_PREFIX = "authenticated";
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 function getSecret(): string {
   const secret = process.env.SESSION_SECRET;
@@ -11,26 +12,41 @@ function getSecret(): string {
   return secret;
 }
 
-export function signToken(): string {
-  const hmac = createHmac("sha256", getSecret());
-  hmac.update(TOKEN_VALUE);
-  const sig = hmac.digest("hex");
-  return `${TOKEN_VALUE}.${sig}`;
+function hmacHex(value: string): string {
+  return createHmac("sha256", getSecret()).update(value).digest("hex");
 }
 
-export function verifyToken(token: string): boolean {
+export function signToken(nowMs: number = Date.now()): string {
+  const exp = Math.floor(nowMs / 1000) + SESSION_MAX_AGE_SECONDS;
+  const value = `${TOKEN_PREFIX}:${exp}`;
+  return `${exp}.${hmacHex(value)}`;
+}
+
+export function verifyToken(token: string, nowMs: number = Date.now()): boolean {
   const parts = token.split(".");
   if (parts.length !== 2) return false;
-  const [value, sig] = parts;
-  if (value !== TOKEN_VALUE) return false;
-  const hmac = createHmac("sha256", getSecret());
-  hmac.update(value);
-  const expected = hmac.digest("hex");
+  const [expStr, sig] = parts;
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || exp <= Math.floor(nowMs / 1000)) return false;
+
+  const expected = hmacHex(`${TOKEN_PREFIX}:${exp}`);
   try {
-    return timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
+    const a = Buffer.from(sig, "hex");
+    const b = Buffer.from(expected, "hex");
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
   } catch {
     return false;
   }
+}
+
+/** Timing-safe password comparison. Hashes both sides to equalize length. */
+export function verifyAdminPassword(input: string): boolean {
+  const expected = process.env.ADMIN_PASSWORD;
+  if (!expected) throw new Error("ADMIN_PASSWORD env var is not set");
+  const a = createHash("sha256").update(input).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
 }
 
 /** Use in Server Components and middleware (reads cookies()) */

@@ -44,7 +44,8 @@ Structured logger lives in `src/lib/logger.ts` — no external deps. It emits JS
 
 ## Layout conventions
 
-- Admin auth: single `ADMIN_PASSWORD` env var. `POST /api/auth` sets an HMAC-signed cookie (`quicz_admin`) signed with `SESSION_SECRET`. No user table. Server Components use `isAdminAuthenticated()` (reads `cookies()`); API route handlers use `isAdminAuthenticatedFromRequest(req)`.
+- Admin auth: single `ADMIN_PASSWORD` env var. `POST /api/auth` sets an HMAC-signed cookie (`quicz_admin`) signed with `SESSION_SECRET`, carrying a 7-day `exp` (see `SESSION_MAX_AGE_SECONDS` in `src/lib/auth.ts`). No user table. Server Components use `isAdminAuthenticated()` (reads `cookies()`); API route handlers use `isAdminAuthenticatedFromRequest(req)`; password comparison goes through `verifyAdminPassword()` (timing-safe).
+- Admin Socket.IO auth: the same cookie gates live admin events. `io.use()` in `src/lib/socket/server.ts` reads it at handshake and sets `socket.data.isAdmin`; every `admin:*` handler must call `requireAdmin(socket)` first (which re-verifies the cookie each time so expiry and `SESSION_SECRET` rotation take effect on live sockets). `DELETE /api/auth` disconnects all `isAdmin` sockets so logout invalidates WS auth too. Don't add a new `admin:*` handler without the `requireAdmin` gate.
 - Admin routes live under `src/app/admin/(protected)/` — the route group's `layout.tsx` enforces auth. Public admin pages (`login`, dashboard redirect) live directly under `src/app/admin/`.
 - Shared realtime types are in `src/lib/socket/events.ts` and imported by both `server.ts` socket handlers and the React client hook in `src/lib/socket/client.ts`. Keep payload shapes in sync across both sides when editing.
 - Socket.IO client opens with `transports: ["polling", "websocket"]` (polling first, upgrades to WebSocket). This order is intentional — don't drop `polling`.
