@@ -11,7 +11,7 @@
   <a href="https://itsjrsa.github.io/quicz/"><img alt="Docs" src="https://img.shields.io/badge/docs-zensical-0ea5e9.svg"></a>
 </p>
 
-![Main menu](docs/screenshots/main-menu.png)
+https://github.com/user-attachments/assets/a696712c-7c92-468c-b34c-d5459c6e2a2d
 
 ## Quickstart
 
@@ -24,12 +24,12 @@ Open <http://localhost:3000>. Admin lives at `/admin` (set `ADMIN_PASSWORD` firs
 
 ## Configuration
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ADMIN_PASSWORD` | ✅ | — | Password for the single admin account. |
-| `SESSION_SECRET` | ✅ | — | Long random string used to HMAC-sign the admin cookie. |
-| `DATABASE_URL` |  | `./data/quicz.db` | Path to the SQLite file. |
-| `PORT` |  | `3000` | HTTP/WebSocket port. |
+| Variable         | Required | Default           | Description                                            |
+| ---------------- | -------- | ----------------- | ------------------------------------------------------ |
+| `ADMIN_PASSWORD` | ✅       | —                 | Password for the single admin account.                 |
+| `SESSION_SECRET` | ✅       | —                 | Long random string used to HMAC-sign the admin cookie. |
+| `DATABASE_URL`   |          | `./data/quicz.db` | Path to the SQLite file.                               |
+| `PORT`           |          | `3000`            | HTTP/WebSocket port.                                   |
 
 ## Docs
 

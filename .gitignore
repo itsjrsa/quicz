@@ -23,6 +23,9 @@ data/
 # OS
 .DS_Store
 
+# Large media (host on GitHub issues/releases instead)
+docs/screenshots/*.mp4
+
 # Internal planning/specs (superpowers skill)
 docs/superpowers/
 
