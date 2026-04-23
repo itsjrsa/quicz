@@ -11,15 +11,17 @@
   <a href="https://itsjrsa.github.io/quicz/"><img alt="Docs" src="https://img.shields.io/badge/docs-zensical-0ea5e9.svg"></a>
 </p>
 
-![Main menu](docs/screenshots/main-menu.png)
-
 <p align="center">
-  <details>
-    <summary>▶️ Watch a 90-second demo</summary>
-    <br>
-    <video src="https://github.com/user-attachments/assets/a696712c-7c92-468c-b34c-d5459c6e2a2d" controls muted playsinline width="720"></video>
-  </details>
+  <img src="docs/screenshots/main-menu.png" alt="Main menu" width="720">
 </p>
+
+<details align="center">
+  <summary><b>▶️ Watch a 90-second demo</b></summary>
+  <br>
+  <p align="center">
+    <video src="https://github.com/user-attachments/assets/a696712c-7c92-468c-b34c-d5459c6e2a2d" controls muted playsinline width="720"></video>
+  </p>
+</details>
 
 ## Quickstart
 
