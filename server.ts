@@ -1,3 +1,8 @@
+// Must load before anything that pulls in Next's app-render runtime: it
+// polyfills globalThis.AsyncLocalStorage on Node < 22, which Next's
+// async-local-storage.js captures at module-load time.
+import "next/dist/server/node-environment-baseline";
+
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { parse } from "url";
 import next from "next";
