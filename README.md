@@ -11,10 +11,6 @@
   <a href="https://itsjrsa.github.io/quicz/"><img alt="Docs" src="https://img.shields.io/badge/docs-zensical-0ea5e9.svg"></a>
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/main-menu.png" alt="Main menu" width="720">
-</p>
-
 <details align="center">
   <summary><b>▶️ Watch a 90-second demo</b></summary>
   <br>
