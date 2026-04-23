@@ -81,10 +81,14 @@ function DistributionPanel({ state }: { state: AdminStatePayload }) {
                 className={`absolute inset-y-0 left-0 ${barColor} opacity-20 transition-all duration-500`}
                 style={{ width: `${pct}%` }}
               />
-              <div className={`relative flex items-center justify-between px-5 py-4 font-medium ${textColor}`}>
+              <div
+                className={`relative flex items-center justify-between px-5 py-4 font-medium ${textColor}`}
+              >
                 <span className="flex items-center gap-2">
                   {reveal && choice.isCorrect && (
-                    <span className="text-success font-bold" aria-label="Correct answer">✓</span>
+                    <span className="text-success font-bold" aria-label="Correct answer">
+                      ✓
+                    </span>
                   )}
                   <span className="truncate">{choice.text}</span>
                 </span>
@@ -108,7 +112,9 @@ export default function PresenterView({ sessionId }: Props) {
   const [copied, setCopied] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
   const [joinUrl, setJoinUrl] = useState<string>("");
-  const [lobbyParticipants, setLobbyParticipants] = useState<{ id: string; displayName: string }[]>([]);
+  const [lobbyParticipants, setLobbyParticipants] = useState<{ id: string; displayName: string }[]>(
+    [],
+  );
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useEffect(() => {
@@ -160,7 +166,7 @@ export default function PresenterView({ sessionId }: Props) {
               totalParticipants: payload.total,
               correctResponseCount: payload.correctCount ?? prev.correctResponseCount,
             }
-          : prev
+          : prev,
       );
     };
 
@@ -228,7 +234,11 @@ export default function PresenterView({ sessionId }: Props) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      )
+        return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const current = stateRef.current;
@@ -262,7 +272,11 @@ export default function PresenterView({ sessionId }: Props) {
       } else if ((e.key === "l" || e.key === "L") && current.phase === "question_open") {
         e.preventDefault();
         socket?.emit("admin:lock-voting", { sessionId });
-      } else if ((e.key === "r" || e.key === "R") && current.phase === "results" && !current.correctRevealed) {
+      } else if (
+        (e.key === "r" || e.key === "R") &&
+        current.phase === "results" &&
+        !current.correctRevealed
+      ) {
         e.preventDefault();
         socket?.emit("admin:show-correct", { sessionId });
       }
@@ -281,10 +295,7 @@ export default function PresenterView({ sessionId }: Props) {
 
   const remainingSeconds =
     state && state.timeLimit != null && state.questionOpenedAt != null
-      ? Math.max(
-          0,
-          Math.ceil((state.questionOpenedAt + state.timeLimit * 1000 - now) / 1000)
-        )
+      ? Math.max(0, Math.ceil((state.questionOpenedAt + state.timeLimit * 1000 - now) / 1000))
       : null;
 
   if (!connected) {
@@ -319,7 +330,9 @@ export default function PresenterView({ sessionId }: Props) {
             )}
           </div>
           <div className="flex-1 min-w-0 w-full">
-            <p className="text-xs uppercase tracking-wider text-ink-faint mb-1 font-mono">Scan or join at</p>
+            <p className="text-xs uppercase tracking-wider text-ink-faint mb-1 font-mono">
+              Scan or join at
+            </p>
             <div className="flex items-center gap-1">
               <p className="text-sm font-mono text-ink-muted truncate">{joinUrl || "…"}</p>
               {joinUrl && (
@@ -331,11 +344,27 @@ export default function PresenterView({ sessionId }: Props) {
                   className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-ink-faint hover:text-ink hover:bg-surface-muted transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
                 >
                   {urlCopied ? (
-                    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-success" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      viewBox="0 0 16 16"
+                      className="w-3.5 h-3.5 text-success"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <polyline points="3,8.5 6.5,12 13,5" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      viewBox="0 0 16 16"
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <rect x="5" y="5" width="8.5" height="8.5" rx="1.5" />
                       <path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2h7" />
                     </svg>
@@ -346,7 +375,9 @@ export default function PresenterView({ sessionId }: Props) {
             <div className="mt-4 flex items-end gap-2">
               <div>
                 <p className="text-xs uppercase tracking-wider text-ink-faint font-mono">Code</p>
-                <p className="font-mono text-5xl font-bold tracking-[0.25em] leading-none">{sessionCode}</p>
+                <p className="font-mono text-5xl font-bold tracking-[0.25em] leading-none">
+                  {sessionCode}
+                </p>
               </div>
               {sessionCode && (
                 <button
@@ -357,11 +388,27 @@ export default function PresenterView({ sessionId }: Props) {
                   className="w-9 h-9 flex items-center justify-center rounded-md text-ink-faint hover:text-ink hover:bg-surface-muted transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
                 >
                   {copied ? (
-                    <svg viewBox="0 0 16 16" className="w-4 h-4 text-success" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      viewBox="0 0 16 16"
+                      className="w-4 h-4 text-success"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <polyline points="3,8.5 6.5,12 13,5" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      viewBox="0 0 16 16"
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <rect x="5" y="5" width="8.5" height="8.5" rx="1.5" />
                       <path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2h7" />
                     </svg>
@@ -370,7 +417,9 @@ export default function PresenterView({ sessionId }: Props) {
               )}
             </div>
             <div className="mt-4">
-              <p className="text-xs uppercase tracking-wider text-ink-faint font-mono">Participants</p>
+              <p className="text-xs uppercase tracking-wider text-ink-faint font-mono">
+                Participants
+              </p>
               <p className="text-3xl font-bold tabular-nums">{state.participantCount}</p>
             </div>
           </div>
@@ -395,9 +444,7 @@ export default function PresenterView({ sessionId }: Props) {
             </span>
           </div>
           {lobbyParticipants.length === 0 ? (
-            <p className="text-sm text-ink-faint italic">
-              Waiting for participants to join…
-            </p>
+            <p className="text-sm text-ink-faint italic">Waiting for participants to join…</p>
           ) : (
             <ul className="flex flex-wrap gap-2">
               {lobbyParticipants.map((p) => (
@@ -416,7 +463,9 @@ export default function PresenterView({ sessionId }: Props) {
       {!showJoinPanel && (
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-line">
           <div>
-            <span className="text-xs uppercase tracking-wider text-ink-faint font-mono">Session code</span>
+            <span className="text-xs uppercase tracking-wider text-ink-faint font-mono">
+              Session code
+            </span>
             <div className="flex items-center gap-2">
               <p className="font-mono text-4xl font-bold tracking-widest">{sessionCode}</p>
               {sessionCode && (
@@ -428,11 +477,27 @@ export default function PresenterView({ sessionId }: Props) {
                   className="w-8 h-8 flex items-center justify-center rounded-md text-ink-faint hover:text-ink hover:bg-surface-muted transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
                 >
                   {copied ? (
-                    <svg viewBox="0 0 16 16" className="w-4 h-4 text-success" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      viewBox="0 0 16 16"
+                      className="w-4 h-4 text-success"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <polyline points="3,8.5 6.5,12 13,5" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      viewBox="0 0 16 16"
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <rect x="5" y="5" width="8.5" height="8.5" rx="1.5" />
                       <path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2h7" />
                     </svg>
@@ -442,7 +507,9 @@ export default function PresenterView({ sessionId }: Props) {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs uppercase tracking-wider text-ink-faint font-mono">Participants</p>
+            <p className="text-xs uppercase tracking-wider text-ink-faint font-mono">
+              Participants
+            </p>
             <p className="text-4xl font-bold tabular-nums">{state.participantCount}</p>
           </div>
         </div>
@@ -497,9 +564,7 @@ export default function PresenterView({ sessionId }: Props) {
                   style={{
                     width:
                       state.totalParticipants > 0
-                        ? `${Math.round(
-                            (state.responseCount / state.totalParticipants) * 100
-                          )}%`
+                        ? `${Math.round((state.responseCount / state.totalParticipants) * 100)}%`
                         : "0%",
                   }}
                 />
@@ -541,10 +606,7 @@ export default function PresenterView({ sessionId }: Props) {
 
         {phase === "question_open" && (
           <>
-            <button
-              onClick={() => emit("admin:back")}
-              className={buttonClass("secondary", "md")}
-            >
+            <button onClick={() => emit("admin:back")} className={buttonClass("secondary", "md")}>
               ← Back
             </button>
             <button
@@ -573,46 +635,51 @@ export default function PresenterView({ sessionId }: Props) {
           </>
         )}
 
-        {phase === "results" && (() => {
-          const isLast =
-            state.totalQuestions > 0 && state.currentQuestionIndex >= state.totalQuestions - 1;
-          return (
-            <>
-              <button
-                onClick={() => emit("admin:back")}
-                className={buttonClass("secondary", "md", "col-span-2")}
-              >
-                ← Back
-              </button>
-              {!state.correctRevealed && (
+        {phase === "results" &&
+          (() => {
+            const isLast =
+              state.totalQuestions > 0 && state.currentQuestionIndex >= state.totalQuestions - 1;
+            return (
+              <>
                 <button
-                  onClick={() => emit("admin:show-correct")}
-                  className={buttonClass("primary", "md", isLast ? "col-span-2" : "")}
+                  onClick={() => emit("admin:back")}
+                  className={buttonClass("secondary", "md", "col-span-2")}
                 >
-                  Reveal answer
+                  ← Back
                 </button>
-              )}
-              {!isLast && (
-                <button
-                  onClick={() => emit("admin:next")}
-                  className={buttonClass("secondary", "md")}
-                >
-                  Next question →
-                </button>
-              )}
-              <button
-                onClick={() => emit("admin:show-scoreboard")}
-                className={buttonClass(
-                  isLast && state.correctRevealed ? "primary" : "secondary",
-                  "md",
-                  "col-span-2"
+                {!state.correctRevealed && (
+                  <button
+                    onClick={() => emit("admin:show-correct")}
+                    className={buttonClass("primary", "md", isLast ? "col-span-2" : "")}
+                  >
+                    Reveal answer
+                  </button>
                 )}
-              >
-                Show final scoreboard
-              </button>
-            </>
-          );
-        })()}
+                {!isLast && (
+                  <button
+                    onClick={() => emit("admin:next")}
+                    className={buttonClass(
+                      state.correctRevealed ? "primary" : "secondary",
+                      "md",
+                      state.correctRevealed ? "col-span-2" : "",
+                    )}
+                  >
+                    Next question →
+                  </button>
+                )}
+                <button
+                  onClick={() => emit("admin:show-scoreboard")}
+                  className={buttonClass(
+                    isLast && state.correctRevealed ? "primary" : "secondary",
+                    "md",
+                    "col-span-2",
+                  )}
+                >
+                  Show final scoreboard
+                </button>
+              </>
+            );
+          })()}
 
         {phase === "final" && (
           <>
@@ -640,12 +707,18 @@ export default function PresenterView({ sessionId }: Props) {
         <span className="shrink-0 flex items-center gap-3">
           {backEvent(state) && (
             <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-surface-muted text-ink-muted font-mono">←</kbd> back
+              <kbd className="px-1.5 py-0.5 rounded bg-surface-muted text-ink-muted font-mono">
+                ←
+              </kbd>{" "}
+              back
             </span>
           )}
           {primaryEvent(state) && (
             <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-surface-muted text-ink-muted font-mono">Space</kbd> advance
+              <kbd className="px-1.5 py-0.5 rounded bg-surface-muted text-ink-muted font-mono">
+                Space
+              </kbd>{" "}
+              advance
             </span>
           )}
           <button
@@ -654,14 +727,13 @@ export default function PresenterView({ sessionId }: Props) {
             className="inline-flex items-center gap-1 text-ink-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink rounded px-1"
             title="Keyboard shortcuts (?)"
           >
-            <kbd className="px-1.5 py-0.5 rounded bg-surface-muted text-ink-muted font-mono">?</kbd> shortcuts
+            <kbd className="px-1.5 py-0.5 rounded bg-surface-muted text-ink-muted font-mono">?</kbd>{" "}
+            shortcuts
           </button>
         </span>
       </div>
 
-      {showShortcuts && (
-        <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />
-      )}
+      {showShortcuts && <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }
