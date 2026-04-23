@@ -1,10 +1,22 @@
+---
+icon: lucide/box
+---
+
 # Architecture
 
-Quicz runs as a single Node.js process on a single port. A custom HTTP server
-(`server.ts`) hosts both the Next.js request handler and a Socket.IO server,
-sharing the same listener. SQLite (via Drizzle ORM and `better-sqlite3`) is
-the single source of truth for session state; Socket.IO is used only as a
-broadcast mechanism.
+Quicz runs as a single Node.js process on a single port. A custom HTTP server (`server.ts`) hosts both the Next.js request handler and a Socket.IO server, sharing the same listener. SQLite (via Drizzle ORM and `better-sqlite3`) is the single source of truth for session state; Socket.IO is used only as a broadcast mechanism.
+
+## High-level
+
+```mermaid
+flowchart LR
+    A[Admin browser] -- HTTP + WS --> S((server.ts))
+    P[Participant browser] -- HTTP + WS --> S
+    S --> N[Next.js App Router]
+    S --> IO[Socket.IO]
+    N <--> DB[(SQLite)]
+    IO <--> DB
+```
 
 ## Component diagram
 
@@ -53,4 +65,4 @@ stateDiagram-v2
     final --> [*]
 ```
 
-See `DESIGN.md` for the full event and payload reference.
+The full spec — data model, socket events, payload shapes — lives in [`DESIGN.md`](https://github.com/itsjrsa/quicz/blob/master/DESIGN.md) in the repo.

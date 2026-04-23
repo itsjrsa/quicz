@@ -8,6 +8,9 @@ out/
 # Build output
 dist/
 
+# Zensical docs build
+site/
+
 # Database
 data/
 *.db
@@ -18,3 +21,6 @@ data/
 
 # OS
 .DS_Store
+
+# Internal planning/specs (superpowers skill)
+docs/superpowers/

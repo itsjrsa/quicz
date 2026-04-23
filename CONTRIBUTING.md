@@ -4,15 +4,15 @@ Thanks for your interest in Quicz.
 
 ## Maintenance status
 
-Quicz is a personal project and is **not under active development**. It was
+Quicz is a personal project maintained on a **best-effort basis**. It was
 built for a specific set of training and workshop needs, and it is published
-here so others can self-host it and learn from it.
+here so others can self-host it and learn from it. Development is occasional
+rather than continuous.
 
-That said — **pull requests are welcome**. New ideas, bug fixes, and
-improvements are appreciated and will be reviewed as time allows. Just be
-aware that response times are best-effort, not guaranteed, and that changes
-that expand scope beyond the core "quick quiz for a room" use case may be
-declined.
+**Pull requests are welcome.** New ideas, bug fixes, and improvements are
+appreciated and will be reviewed as time allows. Response times are
+best-effort, not guaranteed, and changes that expand scope beyond the core
+"quick quiz for a room" use case may be declined.
 
 ## Before you open a PR
 
@@ -32,7 +32,8 @@ declined.
 
 ## Running locally
 
-See the [Installation](./README.md#installation) section of the README.
+See the [Install](https://itsjrsa.github.io/quicz/install/) page in the docs,
+or the Quickstart section in [`README.md`](./README.md).
 
 ## Commit and PR conventions
 
@@ -56,8 +57,8 @@ Open a GitHub issue with:
 ## Security issues
 
 Please do **not** open a public issue for security vulnerabilities. Instead,
-contact the maintainer directly via the email address on the GitHub profile
-linked in the README.
+contact the maintainer directly via the email address on the
+[@itsjrsa](https://github.com/itsjrsa) GitHub profile.
 
 ## Licensing
 
