@@ -7,9 +7,24 @@
     "dev": "tsx watch server.ts",
     "build": "next build && tsc --project tsconfig.server.json",
     "start": "node dist/server.js",
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit && tsc --noEmit --project tsconfig.server.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
@@ -34,6 +49,11 @@
     "@types/react-dom": "^19",
     "@types/uuid": "^9.0.7",
     "drizzle-kit": "^0.31.10",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.15",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.9.3"

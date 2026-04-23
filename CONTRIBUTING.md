@@ -25,8 +25,11 @@ best-effort, not guaranteed, and changes that expand scope beyond the core
    process with SQLite. Proposals that require new runtime services
    (Redis, Postgres, a separate worker, etc.) are unlikely to land unless
    they are opt-in.
-4. **Match the existing style.** TypeScript strict mode, no linter/formatter
-   is configured — mirror the conventions already in the code.
+4. **Match the existing style.** TypeScript strict mode. ESLint
+   (`eslint-config-next`) and Prettier are configured — run `npm run lint`
+   and `npm run format` before opening a PR. A Husky pre-commit hook runs
+   `lint-staged` and `npm run typecheck`; commits that don't pass are
+   rejected.
 5. **Read `DESIGN.md`** if you are touching socket events, the session
    phase machine, or the data model. It is the authoritative spec.
 

@@ -8,12 +8,17 @@ This file provides codebase guidance for AI coding assistants (Claude Code, open
 npm run dev          # tsx watch server.ts — runs custom server (NOT `next dev`)
 npm run build        # next build + tsc -p tsconfig.server.json (emits dist/server.js)
 npm run start        # node dist/server.js — production entry
+npm run lint         # next lint (ESLint + eslint-config-next)
+npm run lint:fix     # next lint --fix
+npm run format       # prettier --write .
+npm run format:check # prettier --check .
+npm run typecheck    # tsc --noEmit for both tsconfig.json and tsconfig.server.json
 npm run db:generate  # drizzle-kit generate (after schema.ts changes)
 npm run db:migrate   # manual migrate via src/db/migrate.ts
 npm run db:studio    # drizzle-kit studio
 ```
 
-There is no test runner, linter, or formatter configured. Type-checking runs as part of `next build`.
+No test runner is configured. ESLint (`eslint-config-next` with `core-web-vitals` + `typescript` presets) and Prettier are wired in. Husky runs a pre-commit hook that invokes `lint-staged` (eslint + prettier on staged files) and `npm run typecheck` for the full project — commits that don't pass get rejected.
 
 Migrations run automatically at server boot (`server.ts` calls `migrate(...)` before `app.prepare()`), so `db:migrate` is rarely needed manually.
 
