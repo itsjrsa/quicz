@@ -59,9 +59,9 @@ Open a GitHub issue with:
 
 ## Security issues
 
-Please do **not** open a public issue for security vulnerabilities. Instead,
-contact the maintainer directly via the email address on the
-[@itsjrsa](https://github.com/itsjrsa) GitHub profile.
+Please do **not** open a public issue for security vulnerabilities. See
+[`SECURITY.md`](./SECURITY.md) for private reporting channels (GitHub
+Security Advisories or email).
 
 ## Licensing
 
