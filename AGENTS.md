@@ -8,8 +8,8 @@ This file provides codebase guidance for AI coding assistants (Claude Code, open
 npm run dev          # tsx watch server.ts — runs custom server (NOT `next dev`)
 npm run build        # next build + tsc -p tsconfig.server.json (emits dist/server.js)
 npm run start        # node dist/server.js — production entry
-npm run lint         # next lint (ESLint + eslint-config-next)
-npm run lint:fix     # next lint --fix
+npm run lint         # eslint . (config: .eslintrc.json, extends eslint-config-next)
+npm run lint:fix     # eslint . --fix
 npm run format       # prettier --write .
 npm run format:check # prettier --check .
 npm run typecheck    # tsc --noEmit for both tsconfig.json and tsconfig.server.json
