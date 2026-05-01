@@ -8,7 +8,7 @@
   <a href="./LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/License-AGPL_v3-blue.svg"></a>
   <a href="https://nodejs.org/"><img alt="Node" src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg"></a>
   <a href="https://nextjs.org/"><img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-black.svg"></a>
-  <a href="https://itsjrsa.github.io/quicz/"><img alt="Docs" src="https://img.shields.io/badge/docs-zensical-0ea5e9.svg"></a>
+  <a href="https://docs.quicz.live/"><img alt="Docs" src="https://img.shields.io/badge/docs-zensical-0ea5e9.svg"></a>
 </p>
 
 <details align="center">
@@ -39,7 +39,7 @@ Open <http://localhost:3000>. Admin lives at `/admin` (set `ADMIN_PASSWORD` firs
 
 ## Docs
 
-Full documentation: **<https://itsjrsa.github.io/quicz/>** — why Quicz, local install, usage walkthrough, architecture, data & privacy, roadmap.
+Full documentation: **<https://docs.quicz.live/>** — why Quicz, local install, usage walkthrough, architecture, data & privacy, roadmap.
 
 Contributor-facing docs stay in the repo:
 

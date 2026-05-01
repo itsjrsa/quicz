@@ -2,7 +2,7 @@
 site_name = "Quicz"
 site_description = "A lean, self-hostable live quiz for the room you're already in."
 site_author = "José Andrade"
-site_url = "https://itsjrsa.github.io/quicz/"
+site_url = "https://docs.quicz.live/"
 repo_url = "https://github.com/itsjrsa/quicz"
 repo_name = "itsjrsa/quicz"
 edit_uri = "edit/master/docs/"

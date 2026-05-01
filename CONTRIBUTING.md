@@ -35,7 +35,7 @@ best-effort, not guaranteed, and changes that expand scope beyond the core
 
 ## Running locally
 
-See the [Install](https://itsjrsa.github.io/quicz/install/) page in the docs,
+See the [Install](https://docs.quicz.live/install/) page in the docs,
 or the Quickstart section in [`README.md`](./README.md).
 
 ## Commit and PR conventions
