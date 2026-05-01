@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { LegalFooter } from "@/components/ui";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -49,7 +50,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
-      <body className="font-sans bg-surface text-ink antialiased">{children}</body>
+      <body className="font-sans bg-surface text-ink antialiased flex flex-col min-h-screen">
+        {children}
+        <LegalFooter />
+      </body>
     </html>
   );
 }
