@@ -531,16 +531,12 @@ export default function PresenterView({ sessionId }: Props) {
           className="mb-6 p-6 sm:p-8 bg-surface-muted rounded-2xl quicz-fade-in"
         >
           <div className="flex items-start justify-between gap-3">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-mono uppercase tracking-wider text-ink-faint">
-                Q{state.currentQuestionIndex + 1}
-                {state.totalQuestions ? ` / ${state.totalQuestions}` : ""}
-              </span>
-              <QuestionTypeBadge type={state.question.type} />
-              <span className="text-xs font-mono uppercase tracking-wider text-ink-faint">
-                {state.question.points} pt{state.question.points !== 1 ? "s" : ""}
-              </span>
-            </div>
+            <p className="mb-3 text-xs font-mono uppercase tracking-wider text-ink-faint">
+              Q{state.currentQuestionIndex + 1}
+              {state.totalQuestions ? ` / ${state.totalQuestions}` : ""}
+              <span className="text-ink-faint/60"> · </span>
+              {state.question.points} pt{state.question.points !== 1 ? "s" : ""}
+            </p>
             {remainingSeconds != null && phase === "question_open" && (
               <span
                 className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium tabular-nums ${
@@ -557,6 +553,9 @@ export default function PresenterView({ sessionId }: Props) {
           <p className="font-bold text-3xl sm:text-4xl leading-tight tracking-tight text-ink">
             {state.question.title}
           </p>
+          <div className="mt-3">
+            <QuestionTypeBadge type={state.question.type} />
+          </div>
           {phase === "question_open" && (
             <div className="mt-6 flex items-end gap-4">
               <StatsRow state={state} showCorrect />

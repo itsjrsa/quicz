@@ -336,18 +336,19 @@ export default function PlayView({ sessionCode }: Props) {
         className="flex-1 flex flex-col px-4 py-8 max-w-lg mx-auto w-full quicz-fade-in"
       >
         <div className="mb-8">
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-wider text-ink-faint">
+          <p className="mb-2 text-xs font-mono uppercase tracking-wider text-ink-faint">
             {total > 0 && (
-              <span>
+              <>
                 Q{current} / {total}
-              </span>
+                <span className="text-ink-faint/60"> · </span>
+              </>
             )}
-            <QuestionTypeBadge type={question.type} showHint />
-            <span>
-              {question.points} pt{question.points !== 1 ? "s" : ""}
-            </span>
-          </div>
+            {question.points} pt{question.points !== 1 ? "s" : ""}
+          </p>
           <h2 className="text-2xl font-bold leading-snug tracking-tight">{question.title}</h2>
+          <div className="mt-3">
+            <QuestionTypeBadge type={question.type} showHint />
+          </div>
           {remainingSeconds != null && state.phase === "question_open" && (
             <p
               className={`mt-3 text-sm font-medium tabular-nums ${
