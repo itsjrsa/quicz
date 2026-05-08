@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `participants_session_lower_name_idx` ON `participants` (`session_id`,lower("display_name"));

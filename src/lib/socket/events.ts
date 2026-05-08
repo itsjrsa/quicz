@@ -22,6 +22,11 @@ export interface SubmitRejectedPayload {
   reason: "time_expired";
 }
 
+export interface JoinRejectedPayload {
+  reason: "name_taken" | "session_not_found" | "session_finished";
+  message: string;
+}
+
 export interface ResultsPayload {
   questionId: string;
   distribution: { choiceId: string; count: number }[];

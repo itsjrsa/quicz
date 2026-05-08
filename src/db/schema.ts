@@ -1,17 +1,17 @@
-import {
-  sqliteTable,
-  text,
-  integer,
-  uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const quizzes = sqliteTable("quizzes", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description"),
   timeLimit: integer("time_limit"),
-  createdAt: integer("created_at").notNull().$defaultFn(() => Date.now()),
-  updatedAt: integer("updated_at").notNull().$defaultFn(() => Date.now()),
+  createdAt: integer("created_at")
+    .notNull()
+    .$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at")
+    .notNull()
+    .$defaultFn(() => Date.now()),
 });
 
 export const questions = sqliteTable("questions", {
@@ -54,18 +54,33 @@ export const liveSessions = sqliteTable("live_sessions", {
   answersVisible: integer("answers_visible").notNull().default(0),
   correctRevealed: integer("correct_revealed").notNull().default(0),
   questionOpenedAt: integer("question_opened_at"),
-  createdAt: integer("created_at").notNull().$defaultFn(() => Date.now()),
+  createdAt: integer("created_at")
+    .notNull()
+    .$defaultFn(() => Date.now()),
   finishedAt: integer("finished_at"),
 });
 
-export const participants = sqliteTable("participants", {
-  id: text("id").primaryKey(),
-  sessionId: text("session_id")
-    .notNull()
-    .references(() => liveSessions.id),
-  displayName: text("display_name").notNull(),
-  joinedAt: integer("joined_at").notNull().$defaultFn(() => Date.now()),
-});
+export const participants = sqliteTable(
+  "participants",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => liveSessions.id),
+    displayName: text("display_name").notNull(),
+    joinedAt: integer("joined_at")
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => [
+    // Case-insensitive uniqueness within a session so the projected scoreboard
+    // and lobby can rely on displayName as a stable label.
+    uniqueIndex("participants_session_lower_name_idx").on(
+      t.sessionId,
+      sql`lower(${t.displayName})`,
+    ),
+  ],
+);
 
 export const responses = sqliteTable(
   "responses",
@@ -83,15 +98,17 @@ export const responses = sqliteTable(
     choiceIds: text("choice_ids").notNull(),
     isCorrect: integer("is_correct"),
     pointsEarned: integer("points_earned"),
-    submittedAt: integer("submitted_at").notNull().$defaultFn(() => Date.now()),
+    submittedAt: integer("submitted_at")
+      .notNull()
+      .$defaultFn(() => Date.now()),
   },
   (t) => [
     uniqueIndex("responses_participant_session_question_idx").on(
       t.participantId,
       t.sessionId,
-      t.questionId
+      t.questionId,
     ),
-  ]
+  ],
 );
 
 // Inferred TypeScript types

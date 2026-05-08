@@ -8,7 +8,7 @@ import {
   choices,
   quizzes,
 } from "../../db/schema";
-import { eq, inArray, and } from "drizzle-orm";
+import { eq, inArray, and, sql } from "drizzle-orm";
 import { scoreQuestion } from "../scoring";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../logger";
@@ -21,6 +21,7 @@ import type {
   ParticipantSubmitPayload,
   AdminJoinPayload,
   AdminActionPayload,
+  JoinRejectedPayload,
 } from "./events";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -295,9 +296,7 @@ function broadcastSessionState(io: SocketIOServer, session: typeof liveSessions.
   });
 }
 
-function computeScoreboard(
-  sessionId: string,
-): {
+function computeScoreboard(sessionId: string): {
   participantId: string;
   displayName: string;
   score: number;
@@ -450,6 +449,11 @@ export function setupSocketHandlers(io: SocketIOServer) {
           socketId: socket.id,
           code: payload.sessionCode,
         });
+        const rejection: JoinRejectedPayload = {
+          reason: "session_not_found",
+          message: "Session not found.",
+        };
+        socket.emit("participant:rejected", rejection);
         return;
       }
 
@@ -460,14 +464,52 @@ export function setupSocketHandlers(io: SocketIOServer) {
       const isReconnect = Boolean(participant && participant.sessionId === session.id);
 
       if (!participant || participant.sessionId !== session.id) {
+        const displayName = payload.displayName.trim();
+
+        const collision = db
+          .select({ id: participants.id })
+          .from(participants)
+          .where(
+            and(
+              eq(participants.sessionId, session.id),
+              sql`lower(${participants.displayName}) = lower(${displayName})`,
+            ),
+          )
+          .get();
+        if (collision) {
+          log.info("participant.join.name_taken", {
+            sessionId: session.id,
+            code: session.code,
+            socketId: socket.id,
+          });
+          const rejection: JoinRejectedPayload = {
+            reason: "name_taken",
+            message: "Name already taken in this session. Pick another.",
+          };
+          socket.emit("participant:rejected", rejection);
+          return;
+        }
+
         // New participant
         participant = {
           id: uuidv4(),
           sessionId: session.id,
-          displayName: payload.displayName.trim(),
+          displayName,
           joinedAt: Date.now(),
         };
-        db.insert(participants).values(participant).run();
+        try {
+          db.insert(participants).values(participant).run();
+        } catch (err) {
+          if (err instanceof Error && /UNIQUE/i.test(err.message)) {
+            const rejection: JoinRejectedPayload = {
+              reason: "name_taken",
+              message: "Name already taken in this session. Pick another.",
+            };
+            socket.emit("participant:rejected", rejection);
+            return;
+          }
+          throw err;
+        }
 
         // Notify admin
         io.to(`admin:${session.id}`).emit("admin:participant-joined", {

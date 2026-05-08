@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useSocket } from "@/lib/socket/client";
 import type {
   SessionStatePayload,
@@ -8,6 +9,7 @@ import type {
   CorrectPayload,
   ScoreboardPayload,
   ResponseCountPayload,
+  JoinRejectedPayload,
 } from "@/lib/socket/events";
 import { buttonClass, ChoiceMarker, QuestionTypeBadge, ThemeToggle } from "@/components/ui";
 
@@ -29,6 +31,7 @@ export default function PlayView({ sessionCode }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [rejected, setRejected] = useState(false);
+  const [joinRejected, setJoinRejected] = useState<JoinRejectedPayload | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const choiceRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
@@ -83,6 +86,15 @@ export default function PlayView({ sessionCode }: Props) {
       setSubmitted(false);
     };
 
+    const handleJoinRejected = (payload: JoinRejectedPayload) => {
+      // Drop the stale stored identity so a return to /join starts fresh.
+      localStorage.removeItem(`participant:${sessionCode}`);
+      if (payload.reason === "name_taken") {
+        localStorage.removeItem(`name:${sessionCode}`);
+      }
+      setJoinRejected(payload);
+    };
+
     const handleResponseCount = (payload: ResponseCountPayload) => setResponseCount(payload);
 
     const handleResults = (payload: ResultsPayload) => setResults(payload);
@@ -91,6 +103,7 @@ export default function PlayView({ sessionCode }: Props) {
     const handleEnded = () => setEnded(true);
 
     socket.on("participant:confirmed", handleConfirmed);
+    socket.on("participant:rejected", handleJoinRejected);
     socket.on("session:state", handleState);
     socket.on("session:results", handleResults);
     socket.on("session:correct", handleCorrect);
@@ -101,6 +114,7 @@ export default function PlayView({ sessionCode }: Props) {
 
     return () => {
       socket.off("participant:confirmed", handleConfirmed);
+      socket.off("participant:rejected", handleJoinRejected);
       socket.off("session:state", handleState);
       socket.off("session:results", handleResults);
       socket.off("session:correct", handleCorrect);
@@ -189,6 +203,20 @@ export default function PlayView({ sessionCode }: Props) {
       choiceIds: selectedChoices,
     });
     setSubmitted(true);
+  }
+
+  if (joinRejected) {
+    return (
+      <Screen>
+        <div className="quicz-fade-in flex flex-col items-center">
+          <p className="text-3xl font-bold mb-2">Couldn&apos;t join</p>
+          <p className="text-ink-muted mb-6 max-w-xs">{joinRejected.message}</p>
+          <Link href={`/join?code=${sessionCode}`} className={buttonClass("primary", "md")}>
+            Pick another name
+          </Link>
+        </div>
+      </Screen>
+    );
   }
 
   if (!connected) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { liveSessions, participants } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { getIo } from "@/lib/socket/io-ref";
 
@@ -32,15 +32,47 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
   }
 
+  const displayName = body.displayName.trim();
+
+  // Reject case-insensitive name collisions within the session so the projected
+  // scoreboard and lobby can rely on displayName as a stable label.
+  const collision = db
+    .select({ id: participants.id })
+    .from(participants)
+    .where(
+      and(
+        eq(participants.sessionId, sessionId),
+        sql`lower(${participants.displayName}) = lower(${displayName})`,
+      ),
+    )
+    .get();
+  if (collision) {
+    return NextResponse.json(
+      { error: "Name already taken in this session. Pick another." },
+      { status: 409 },
+    );
+  }
+
   // New participant
   const participant = {
     id: uuidv4(),
     sessionId,
-    displayName: body.displayName.trim(),
+    displayName,
     joinedAt: Date.now(),
   };
 
-  db.insert(participants).values(participant).run();
+  try {
+    db.insert(participants).values(participant).run();
+  } catch (err) {
+    // Race fallback: unique index caught a concurrent insert with the same name
+    if (err instanceof Error && /UNIQUE/i.test(err.message)) {
+      return NextResponse.json(
+        { error: "Name already taken in this session. Pick another." },
+        { status: 409 },
+      );
+    }
+    throw err;
+  }
 
   // Notify admins watching this session
   const io = getIo();

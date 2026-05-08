@@ -33,12 +33,15 @@ function JoinInner() {
   const [loading, setLoading] = useState(false);
   const autoTriedRef = useRef(false);
 
-  const validateCode = useCallback(async (rawCode: string): Promise<"ok" | "finished" | "notfound"> => {
-    const res = await fetch(`/api/sessions/by-code/${rawCode}`);
-    if (!res.ok) return "notfound";
-    const data = (await res.json()) as { status: string };
-    return data.status === "finished" ? "finished" : "ok";
-  }, []);
+  const validateCode = useCallback(
+    async (rawCode: string): Promise<"ok" | "finished" | "notfound"> => {
+      const res = await fetch(`/api/sessions/by-code/${rawCode}`);
+      if (!res.ok) return "notfound";
+      const data = (await res.json()) as { status: string };
+      return data.status === "finished" ? "finished" : "ok";
+    },
+    [],
+  );
 
   useEffect(() => {
     if (autoTriedRef.current) return;
@@ -104,6 +107,12 @@ function JoinInner() {
     } else {
       const err = (await joinRes.json()) as { error?: string };
       setError(err.error ?? "Could not join. Try again.");
+      // Name collision: drop the stale stored identity and put the user on
+      // the name step so they can pick a different name.
+      if (joinRes.status === 409) {
+        localStorage.removeItem(`participant:${codeUpper}`);
+        setStep("name");
+      }
       setLoading(false);
     }
   }
@@ -173,9 +182,7 @@ function JoinInner() {
               Joining session <span className="font-mono font-bold text-ink">{code}</span>
             </p>
             <div>
-              <label className="block text-sm font-medium text-ink mb-2">
-                Your name
-              </label>
+              <label className="block text-sm font-medium text-ink mb-2">Your name</label>
               <Input
                 fieldSize="lg"
                 value={name}
@@ -187,7 +194,11 @@ function JoinInner() {
                 invalid={Boolean(error)}
               />
             </div>
-            {error && <p className="text-sm text-danger text-center" aria-live="polite">{error}</p>}
+            {error && (
+              <p className="text-sm text-danger text-center" aria-live="polite">
+                {error}
+              </p>
+            )}
             <button
               type="submit"
               disabled={loading || !name.trim()}
@@ -282,11 +293,7 @@ function CodeBoxes({
   }
 
   return (
-    <div
-      className="flex justify-center gap-2"
-      role="group"
-      aria-label="Six-character session code"
-    >
+    <div className="flex justify-center gap-2" role="group" aria-label="Six-character session code">
       {chars.map((c, i) => (
         <input
           key={i}
@@ -308,9 +315,7 @@ function CodeBoxes({
           className={[
             "w-12 h-14 text-center text-2xl font-mono font-semibold uppercase",
             "bg-surface rounded-lg border transition-colors",
-            invalid
-              ? "border-danger"
-              : "border-line focus-visible:border-ink",
+            invalid ? "border-danger" : "border-line focus-visible:border-ink",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/10",
             "disabled:bg-surface-muted disabled:text-ink-faint",
           ].join(" ")}
