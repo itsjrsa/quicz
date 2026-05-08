@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { useSocket } from "@/lib/socket/client";
 import type { AdminStatePayload, ScoreboardPayload } from "@/lib/socket/events";
-import { buttonClass } from "@/components/ui";
+import { buttonClass, QuestionTypeBadge } from "@/components/ui";
 
 interface Props {
   sessionId: string;
@@ -531,14 +531,16 @@ export default function PresenterView({ sessionId }: Props) {
           className="mb-6 p-6 sm:p-8 bg-surface-muted rounded-2xl quicz-fade-in"
         >
           <div className="flex items-start justify-between gap-3">
-            <p className="text-xs font-mono uppercase tracking-wider text-ink-faint mb-3">
-              Q{state.currentQuestionIndex + 1}
-              {state.totalQuestions ? ` / ${state.totalQuestions}` : ""}
-              <span className="text-ink-faint/60"> · </span>
-              {state.question.type}
-              <span className="text-ink-faint/60"> · </span>
-              {state.question.points} pt{state.question.points !== 1 ? "s" : ""}
-            </p>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-mono uppercase tracking-wider text-ink-faint">
+                Q{state.currentQuestionIndex + 1}
+                {state.totalQuestions ? ` / ${state.totalQuestions}` : ""}
+              </span>
+              <QuestionTypeBadge type={state.question.type} />
+              <span className="text-xs font-mono uppercase tracking-wider text-ink-faint">
+                {state.question.points} pt{state.question.points !== 1 ? "s" : ""}
+              </span>
+            </div>
             {remainingSeconds != null && phase === "question_open" && (
               <span
                 className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium tabular-nums ${

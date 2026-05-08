@@ -9,7 +9,7 @@ import type {
   ScoreboardPayload,
   ResponseCountPayload,
 } from "@/lib/socket/events";
-import { buttonClass, ThemeToggle } from "@/components/ui";
+import { buttonClass, ChoiceMarker, QuestionTypeBadge, ThemeToggle } from "@/components/ui";
 
 interface Props {
   sessionCode: string;
@@ -175,7 +175,7 @@ export default function PlayView({ sessionCode }: Props) {
 
     if (state.question?.type === "multi") {
       setSelectedChoices((prev) =>
-        prev.includes(choiceId) ? prev.filter((id) => id !== choiceId) : [...prev, choiceId]
+        prev.includes(choiceId) ? prev.filter((id) => id !== choiceId) : [...prev, choiceId],
       );
     } else {
       setSelectedChoices([choiceId]);
@@ -217,9 +217,8 @@ export default function PlayView({ sessionCode }: Props) {
   }
 
   if (state.phase === "lobby") {
-    const displayName = typeof window !== "undefined"
-      ? localStorage.getItem(`name:${sessionCode}`)
-      : null;
+    const displayName =
+      typeof window !== "undefined" ? localStorage.getItem(`name:${sessionCode}`) : null;
     return (
       <Screen>
         <div className="quicz-fade-in flex flex-col items-center">
@@ -246,15 +245,12 @@ export default function PlayView({ sessionCode }: Props) {
 
   if (state.phase === "final" || scoreboard) {
     const myRanking = scoreboard?.rankings.find((r) => r.participantId === participantId);
-    const showMeBelowCut =
-      scoreboard && myRanking && myRanking.rank > 10;
+    const showMeBelowCut = scoreboard && myRanking && myRanking.rank > 10;
     return (
       <Screen>
         <div className="quicz-fade-in w-full max-w-xs">
           <p className="text-3xl font-bold mb-1 text-center">Final standings</p>
-          <p className="text-sm text-ink-muted text-center mb-6">
-            Thanks for playing.
-          </p>
+          <p className="text-sm text-ink-muted text-center mb-6">Thanks for playing.</p>
           {scoreboard ? (
             <>
               <ul className="space-y-2">
@@ -264,9 +260,7 @@ export default function PlayView({ sessionCode }: Props) {
                     <li
                       key={r.participantId}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                        isMe
-                          ? "bg-ink-strong text-surface"
-                          : "bg-surface-muted text-ink"
+                        isMe ? "bg-ink-strong text-surface" : "bg-surface-muted text-ink"
                       }`}
                     >
                       <span
@@ -286,9 +280,7 @@ export default function PlayView({ sessionCode }: Props) {
                 <>
                   <p className="text-center text-xs text-ink-faint mt-3 mb-2">· · ·</p>
                   <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-ink-strong text-surface">
-                    <span className="text-sm font-mono w-6 text-line-strong">
-                      {myRanking.rank}
-                    </span>
+                    <span className="text-sm font-mono w-6 text-line-strong">{myRanking.rank}</span>
                     <span className="flex-1 text-sm font-medium truncate">
                       {myRanking.displayName}
                     </span>
@@ -306,7 +298,12 @@ export default function PlayView({ sessionCode }: Props) {
   }
 
   const question = state.question;
-  if (!question) return <Screen><p className="text-ink-faint">Loading question…</p></Screen>;
+  if (!question)
+    return (
+      <Screen>
+        <p className="text-ink-faint">Loading question…</p>
+      </Screen>
+    );
 
   const isLocked = state.phase === "question_locked" || state.phase === "results";
 
@@ -318,13 +315,9 @@ export default function PlayView({ sessionCode }: Props) {
 
   const remainingSeconds =
     state.timeLimit != null && state.questionOpenedAt != null
-      ? Math.max(
-          0,
-          Math.ceil((state.questionOpenedAt + state.timeLimit * 1000 - now) / 1000)
-        )
+      ? Math.max(0, Math.ceil((state.questionOpenedAt + state.timeLimit * 1000 - now) / 1000))
       : null;
-  const timeUp =
-    remainingSeconds === 0 && state.phase === "question_open";
+  const timeUp = remainingSeconds === 0 && state.phase === "question_open";
 
   return (
     <div className="relative min-h-screen flex flex-col bg-surface">
@@ -343,17 +336,17 @@ export default function PlayView({ sessionCode }: Props) {
         className="flex-1 flex flex-col px-4 py-8 max-w-lg mx-auto w-full quicz-fade-in"
       >
         <div className="mb-8">
-          <p className="text-xs text-ink-faint uppercase tracking-wider mb-2 font-mono">
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-wider text-ink-faint">
             {total > 0 && (
-              <>
+              <span>
                 Q{current} / {total}
-                <span className="text-ink-faint/60"> · </span>
-              </>
+              </span>
             )}
-            {question.type === "multi" ? "Select all that apply" : "Choose one"}
-            <span className="text-ink-faint/60"> · </span>
-            {question.points} pt{question.points !== 1 ? "s" : ""}
-          </p>
+            <QuestionTypeBadge type={question.type} showHint />
+            <span>
+              {question.points} pt{question.points !== 1 ? "s" : ""}
+            </span>
+          </div>
           <h2 className="text-2xl font-bold leading-snug tracking-tight">{question.title}</h2>
           {remainingSeconds != null && state.phase === "question_open" && (
             <p
@@ -386,11 +379,27 @@ export default function PlayView({ sessionCode }: Props) {
                 }`}
               >
                 {correct.participantResult.isCorrect ? (
-                  <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    viewBox="0 0 20 20"
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <polyline points="4,10.5 8.5,15 16,6" />
                   </svg>
                 ) : (
-                  <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    viewBox="0 0 20 20"
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <line x1="5" y1="5" x2="15" y2="15" />
                     <line x1="15" y1="5" x2="5" y2="15" />
                   </svg>
@@ -400,7 +409,9 @@ export default function PlayView({ sessionCode }: Props) {
                 {correct.participantResult.isCorrect ? (
                   <>
                     <p className="font-semibold text-ink leading-tight">Correct</p>
-                    <p className="text-sm text-ink-muted">+{correct.participantResult.pointsEarned} points</p>
+                    <p className="text-sm text-ink-muted">
+                      +{correct.participantResult.pointsEarned} points
+                    </p>
                   </>
                 ) : (
                   <>
@@ -416,9 +427,7 @@ export default function PlayView({ sessionCode }: Props) {
         <div className="space-y-3 flex-1">
           {(() => {
             const showBars = state.phase === "results" && state.answersVisible && results;
-            const totalVotes = showBars
-              ? results.distribution.reduce((s, d) => s + d.count, 0)
-              : 0;
+            const totalVotes = showBars ? results.distribution.reduce((s, d) => s + d.count, 0) : 0;
 
             return state.choices.map((choice) => {
               const isSelected = selectedChoices.includes(choice.id);
@@ -459,13 +468,19 @@ export default function PlayView({ sessionCode }: Props) {
                       className={`absolute inset-y-0 left-0 ${barColor} opacity-20 transition-all duration-500`}
                       style={{ width: `${pct}%` }}
                     />
-                    <div className={`relative flex items-center justify-between px-5 py-4 font-medium ${textColor}`}>
+                    <div
+                      className={`relative flex items-center justify-between px-5 py-4 font-medium ${textColor}`}
+                    >
                       <span className="flex items-center gap-2">
                         {state.correctRevealed && isCorrectChoice && (
-                          <span className="text-success font-bold" aria-label="Correct answer">✓</span>
+                          <span className="text-success font-bold" aria-label="Correct answer">
+                            ✓
+                          </span>
                         )}
                         {state.correctRevealed && isSelected && !isCorrectChoice && (
-                          <span className="text-danger font-bold" aria-label="Your answer">✗</span>
+                          <span className="text-danger font-bold" aria-label="Your answer">
+                            ✗
+                          </span>
                         )}
                         {choice.text}
                       </span>
@@ -479,6 +494,7 @@ export default function PlayView({ sessionCode }: Props) {
 
               let choiceClass =
                 "w-full px-5 py-4 rounded-xl border-2 text-left font-medium transition-all duration-150 " +
+                "flex items-center gap-3 " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 ";
               if (isSelected) {
                 choiceClass += "border-ink-strong bg-ink-strong text-surface";
@@ -502,7 +518,8 @@ export default function PlayView({ sessionCode }: Props) {
                   disabled={isLocked || submitted}
                   className={choiceClass}
                 >
-                  {choice.text}
+                  <ChoiceMarker type={question.type} selected={isSelected} />
+                  <span className="flex-1">{choice.text}</span>
                 </button>
               );
             });
@@ -562,7 +579,6 @@ export default function PlayView({ sessionCode }: Props) {
             </span>
           </div>
         )}
-
       </div>
     </div>
   );
